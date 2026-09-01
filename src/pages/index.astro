@@ -1,0 +1,82 @@
+---
+import BenchmarkConsole from '../benchmark/ui/BenchmarkConsole.astro'
+import Layout from '../layouts/Layout.astro'
+import { ghostButton } from '../ui/button-recipes'
+---
+
+<Layout>
+  <a
+    href="#main"
+    class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-accent-contrast"
+  >
+    Saltar al contenido
+  </a>
+
+  <div class="min-h-dvh bg-canvas">
+    <header class="border-b border-subtle bg-surface">
+      <div class="mx-auto flex w-full max-w-dashboard flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-6 lg:px-8">
+        <div class="grid gap-1">
+          <h1 class="font-title text-2xl font-bold text-primary sm:text-3xl">
+            Firestore <span class="text-muted">vs</span> MongoDB
+          </h1>
+          <p class="text-sm text-secondary">
+            Latencia y rendimiento en operaciones habituales sobre documentos.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          id="theme-toggle"
+          aria-pressed="false"
+          class={ghostButton('sm')}
+        >
+          <span class="sr-only">Cambiar tema claro u oscuro</span>
+          <span aria-hidden="true" data-theme-icon>◑</span>
+        </button>
+      </div>
+    </header>
+
+    <main id="main" class="mx-auto w-full max-w-dashboard px-5 py-6 sm:px-6 lg:px-8">
+      <p
+        class="mb-6 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-secondary"
+      >
+        <strong class="font-semibold text-primary">Firestore en nam5 (multirregión).</strong> Las escrituras replican entre
+        regiones de EE. UU. antes de confirmarse, así que su latencia de escritura incluye ese consenso.
+        Las mediciones son reales y salen del puerto <code class="font-mono text-xs">BenchmarkRunner</code> ejecutándose
+        en el servidor.
+      </p>
+
+      <BenchmarkConsole />
+    </main>
+  </div>
+</Layout>
+
+<script>
+  import { createHttpBenchmarkRunner } from '../benchmark/adapters/http-benchmark-runner'
+  import { BenchmarkConsole } from '../benchmark/ui/benchmark-console'
+
+  // Composition root: the only place allowed to know which adapter drives the island.
+  // `instanceof` rather than querySelector<T>, which only asserts the type.
+  customElements.whenDefined('benchmark-console').then(() => {
+    const island = document.querySelector('benchmark-console')
+    if (island instanceof BenchmarkConsole) {
+      island.setRunner(createHttpBenchmarkRunner())
+    }
+  })
+
+  const STORAGE_KEY = 'db-bench-theme'
+  const toggle = document.querySelector<HTMLButtonElement>('#theme-toggle')
+
+  const sync = (theme: string): void => {
+    document.documentElement.dataset.theme = theme
+    toggle?.setAttribute('aria-pressed', String(theme === 'dark'))
+  }
+
+  sync(document.documentElement.dataset.theme ?? 'light')
+
+  toggle?.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'
+    localStorage.setItem(STORAGE_KEY, next)
+    sync(next)
+  })
+</script>

@@ -1,0 +1,195 @@
+---
+import { CONFIG_LIMITS, DEFAULT_CONFIG, ENGINE_IDS, OPERATION_IDS } from '../domain'
+import { ghostButton } from '../../ui/button-recipes'
+import { ENGINE_DISPLAY, OPERATION_DISPLAY } from './labels'
+
+const panel = 'rounded-xl border border-subtle bg-surface'
+const legendText = 'text-xs font-semibold uppercase tracking-wider text-muted'
+const numberField =
+  'w-full rounded-lg border border-subtle bg-inset px-3 py-2 font-mono text-sm text-primary tnum outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40'
+
+const numericFields = [
+  {
+    name: 'iterations',
+    label: 'Iteraciones',
+    hint: 'Muestras por motor y operación',
+    value: DEFAULT_CONFIG.iterations,
+    limits: CONFIG_LIMITS.iterations,
+  },
+  {
+    name: 'warmupIterations',
+    label: 'Calentamiento',
+    hint: 'Descartadas antes de medir',
+    value: DEFAULT_CONFIG.warmupIterations,
+    limits: CONFIG_LIMITS.warmupIterations,
+  },
+  {
+    name: 'documentSizeBytes',
+    label: 'Tamaño del documento',
+    hint: 'Payload en bytes',
+    value: DEFAULT_CONFIG.documentSizeBytes,
+    limits: CONFIG_LIMITS.documentSizeBytes,
+  },
+  {
+    name: 'concurrency',
+    label: 'Concurrencia',
+    hint: 'Workers en paralelo',
+    value: DEFAULT_CONFIG.concurrency,
+    limits: CONFIG_LIMITS.concurrency,
+  },
+] as const
+---
+
+<benchmark-console class="grid gap-6 lg:grid-cols-[21rem_minmax(0,1fr)] lg:items-start">
+  <form data-ref="form" class={`${panel} grid gap-6 p-5 lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto`} novalidate>
+    <fieldset class="grid gap-3">
+      <legend class={legendText}>Motores</legend>
+      {
+        ENGINE_IDS.map((engine) => (
+          <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-subtle bg-inset p-3 transition-colors has-checked:border-accent has-checked:bg-accent/5">
+            <input
+              type="checkbox"
+              name="engine"
+              value={engine}
+              checked
+              class="mt-0.5 size-4 accent-accent"
+            />
+            <span class="grid gap-0.5">
+              <span class="flex items-center gap-2 text-sm font-medium text-primary">
+                <span
+                  aria-hidden="true"
+                  class="inline-block size-2.5 rounded-full"
+                  style={`background-color: var(${ENGINE_DISPLAY[engine].colorVar})`}
+                />
+                {ENGINE_DISPLAY[engine].label}
+              </span>
+              <span class="text-xs text-muted">{ENGINE_DISPLAY[engine].tagline}</span>
+            </span>
+          </label>
+        ))
+      }
+    </fieldset>
+
+    <fieldset class="grid gap-2">
+      <legend class={legendText}>Operaciones</legend>
+      {
+        OPERATION_IDS.map((operation) => (
+          <label class="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-raised">
+            <input
+              type="checkbox"
+              name="operation"
+              value={operation}
+              checked={DEFAULT_CONFIG.operations.includes(operation)}
+              class="size-4 accent-accent"
+            />
+            <span class="grid gap-0.5">
+              <span class="text-sm text-primary">{OPERATION_DISPLAY[operation].label}</span>
+              <span class="text-xs text-muted">{OPERATION_DISPLAY[operation].description}</span>
+            </span>
+          </label>
+        ))
+      }
+    </fieldset>
+
+    <fieldset class="grid gap-4">
+      <legend class={legendText}>Carga de trabajo</legend>
+      {
+        numericFields.map((field) => (
+          <div class="grid gap-1.5">
+            <label for={`field-${field.name}`} class="text-sm font-medium text-secondary">
+              {field.label}
+            </label>
+            <input
+              id={`field-${field.name}`}
+              name={field.name}
+              type="number"
+              inputmode="numeric"
+              value={field.value}
+              min={field.limits.min}
+              max={field.limits.max}
+              step="1"
+              aria-describedby={`hint-${field.name}`}
+              class={numberField}
+            />
+            <span id={`hint-${field.name}`} class="text-xs text-muted">
+              {field.hint}
+            </span>
+          </div>
+        ))
+      }
+    </fieldset>
+
+    <ul
+      data-ref="errors"
+      hidden
+      class="grid gap-1 rounded-lg border border-error/40 bg-error/10 p-3 text-sm text-error"
+    >
+    </ul>
+
+    <div class="flex gap-2">
+      <button
+        type="submit"
+        data-ref="run"
+        class="flex-1 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        Ejecutar benchmark
+      </button>
+      <button
+        type="button"
+        data-ref="cancel"
+        hidden
+        class={ghostButton()}
+      >
+        Cancelar
+      </button>
+    </div>
+  </form>
+
+  <div class="grid gap-6">
+    <section class={`${panel} p-5`} aria-labelledby="progress-heading">
+      <div class="flex items-baseline justify-between gap-4">
+        <h2 id="progress-heading" class="text-sm font-semibold text-primary">Progreso de la ejecución</h2>
+        <span data-ref="progress-label" class="font-mono text-sm tnum text-secondary">0%</span>
+      </div>
+
+      <div
+        data-ref="progress-track"
+        role="progressbar"
+        aria-labelledby="progress-heading"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+        class="mt-3 h-2 overflow-hidden rounded-full bg-inset"
+      >
+        <div
+          data-ref="progress-bar"
+          style="width: 0%"
+          class="h-full rounded-full bg-accent transition-[width] duration-150 ease-out"
+        >
+        </div>
+      </div>
+
+      <p data-ref="status" role="status" aria-live="polite" class="mt-3 text-sm text-secondary">
+        En espera. Configura una ejecución e iníciala.
+      </p>
+    </section>
+
+    <section class={panel} aria-labelledby="chart-heading">
+      <h2 id="chart-heading" class="px-5 pt-5 text-sm font-semibold text-primary">
+        Comparación de latencia p95
+      </h2>
+      <div data-ref="chart" class="px-5 pt-4 pb-5"></div>
+    </section>
+
+    <section class={panel} aria-labelledby="results-heading">
+      <h2 id="results-heading" class="px-5 pt-5 pb-1 text-sm font-semibold text-primary">
+        Distribución de latencia
+      </h2>
+      <div data-ref="results"></div>
+    </section>
+  </div>
+</benchmark-console>
+
+<script>
+  import './benchmark-console'
+</script>
