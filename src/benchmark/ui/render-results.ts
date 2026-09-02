@@ -6,6 +6,7 @@ import {
 } from '../domain'
 import { COPY, fasterBadge, tableCaption } from './copy'
 import { formatCount, formatMs, formatOps, formatSpeedup } from './format'
+import { icon } from '../../ui/icons'
 import { ENGINE_DISPLAY, OPERATION_DISPLAY } from './labels'
 
 const NUMERIC_CELL = 'px-2.5 py-2 text-right tnum font-mono text-xs text-primary'
@@ -21,30 +22,66 @@ const cell = (className: string, text: string): HTMLTableCellElement => {
 const engineCell = (engine: EngineId): HTMLTableCellElement => {
   const display = ENGINE_DISPLAY[engine]
   const element = document.createElement('td')
-  element.className = 'px-3 py-2 text-left text-sm font-medium text-primary'
+  element.className = 'px-3 py-2 text-left text-body-sm font-medium text-primary'
 
-  const dot = document.createElement('span')
-  dot.className = 'mr-2 inline-block size-2.5 rounded-full align-middle'
-  dot.style.backgroundColor = `var(${display.colorVar})`
-  dot.setAttribute('aria-hidden', 'true')
+  // The mark is tinted with the engine's own colour, so it replaces the dot
+  // rather than sitting beside it: one glyph, both signals.
+  const mark = document.createElement('span')
+  mark.className = 'mr-2 inline-flex align-middle'
+  mark.style.color = `var(${display.colorVar})`
+  mark.innerHTML = icon(display.icon, 'size-4')
 
-  element.append(dot, document.createTextNode(display.label))
+  element.append(mark, document.createTextNode(display.label))
   return element
 }
 
 const winnerBadge = (text: string): HTMLElement => {
   const badge = document.createElement('span')
   badge.className =
-    'ml-2 rounded-full border border-ok/40 bg-ok/10 px-2 py-0.5 text-[11px] font-semibold text-ok'
+    'ml-2 rounded-button bg-pixel-glare px-3 py-1 text-[11px] font-semibold text-abyssal-ink'
   badge.textContent = text
   return badge
 }
 
+/**
+ * The palette holds no red, so a non-zero error count is inverted ink instead
+ * of coloured text: a black pill in a beige table is the loudest signal here.
+ * @param count - errors recorded during the phase
+ * @returns the cell, plain and muted at zero
+ */
+const errorCell = (count: number): HTMLTableCellElement => {
+  const element = document.createElement('td')
+
+  if (count === 0) {
+    element.className = `${NUMERIC_CELL} text-muted`
+    element.textContent = formatCount(count)
+    return element
+  }
+
+  element.className = 'px-2.5 py-2 text-right'
+  const pill = document.createElement('span')
+  pill.className =
+    'inline-flex items-center gap-1.5 rounded-button bg-abyssal-ink px-3 py-1 font-mono text-xs tnum text-pure-white'
+  pill.innerHTML = icon('triangle-alert', 'size-3.5')
+  pill.append(document.createTextNode(formatCount(count)))
+  element.append(pill)
+  return element
+}
+
 const emptyState = (): HTMLElement => {
+  const wrapper = document.createElement('div')
+  wrapper.className = 'grid justify-items-center gap-4 px-10 py-16 text-center'
+
+  const glyph = document.createElement('span')
+  glyph.className = 'inline-flex text-subtle'
+  glyph.innerHTML = icon('table-2', 'size-12')
+
   const message = document.createElement('p')
-  message.className = 'px-4 py-10 text-center text-sm text-muted'
+  message.className = 'text-body-sm text-muted'
   message.textContent = COPY.table.empty
-  return message
+
+  wrapper.append(glyph, message)
+  return wrapper
 }
 
 /**
@@ -68,7 +105,7 @@ export const renderResults = (host: HTMLElement, results: readonly OperationResu
     section.className = 'border-b border-subtle last:border-b-0'
 
     const heading = document.createElement('h3')
-    heading.className = 'flex flex-wrap items-baseline gap-x-2 px-4 pt-4 text-sm font-semibold text-primary'
+    heading.className = 'flex flex-wrap items-baseline gap-x-2 px-10 pt-8 text-body font-semibold text-primary'
     heading.append(document.createTextNode(display.label))
 
     const hint = document.createElement('span')
@@ -89,7 +126,7 @@ export const renderResults = (host: HTMLElement, results: readonly OperationResu
     }
 
     const scroller = document.createElement('div')
-    scroller.className = 'overflow-x-auto px-2 pb-4'
+    scroller.className = 'overflow-x-auto px-6 pb-8'
 
     const table = document.createElement('table')
     table.className = 'w-full min-w-[52rem] border-collapse'
@@ -134,10 +171,7 @@ export const renderResults = (host: HTMLElement, results: readonly OperationResu
         cell(NUMERIC_CELL, formatMs(result.summary.meanMs)),
         cell(NUMERIC_CELL, formatMs(result.summary.maxMs)),
         cell(NUMERIC_CELL, formatOps(throughputOpsPerSecond(result))),
-        cell(
-          `${NUMERIC_CELL} ${result.errorCount > 0 ? 'text-error' : 'text-muted'}`,
-          formatCount(result.errorCount),
-        ),
+        errorCell(result.errorCount),
       )
       body.append(row)
     }

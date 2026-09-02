@@ -1,12 +1,19 @@
 ---
 import { CONFIG_LIMITS, DEFAULT_CONFIG, ENGINE_IDS, OPERATION_IDS } from '../domain'
-import { ghostButton } from '../../ui/button-recipes'
+import { ghostButton, solidButton } from '../../ui/button-recipes'
+import Checkbox from '../../ui/Checkbox.astro'
+import { icon } from '../../ui/icons'
 import { ENGINE_DISPLAY, OPERATION_DISPLAY } from './labels'
 
-const panel = 'rounded-xl border border-subtle bg-surface'
-const legendText = 'text-xs font-semibold uppercase tracking-wider text-muted'
+/* Caldera cards: Ash White, 40px radius, 40px padding. The padding applies to
+   the container — never to a table row, which would make the data unreadable. */
+const panel = 'rounded-card bg-surface p-10'
+const legendText = 'text-xs font-semibold uppercase tracking-widest text-muted'
+
+/* Pill inputs, 100px radius. Focus inverts the border to full ink rather than
+   adding a glow: the system is flat and has no shadows. */
 const numberField =
-  'w-full rounded-lg border border-subtle bg-inset px-3 py-2 font-mono text-sm text-primary tnum outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40'
+  'w-full rounded-input border border-subtle bg-canvas px-6 py-3 font-mono text-body-sm text-primary tnum outline-none focus-visible:border-strong focus-visible:ring-2 focus-visible:ring-abyssal-ink/20'
 
 const numericFields = [
   {
@@ -40,26 +47,28 @@ const numericFields = [
 ] as const
 ---
 
-<benchmark-console class="grid gap-6 lg:grid-cols-[21rem_minmax(0,1fr)] lg:items-start">
-  <form data-ref="form" class={`${panel} grid gap-6 p-5 lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto`} novalidate>
-    <fieldset class="grid gap-3">
-      <legend class={legendText}>Motores</legend>
+<benchmark-console class="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)] lg:items-start">
+  {/* Two rows: the fields scroll, the action does not. A sticky footer INSIDE the
+      scroll area would float over the fields it is meant to sit below. */}
+  <form
+    data-ref="form"
+    class="grid overflow-hidden rounded-card bg-surface lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:grid-rows-[minmax(0,1fr)_auto]"
+    novalidate
+  >
+   <div class="grid gap-8 overflow-y-auto p-10">
+    <fieldset class="grid gap-2.5">
+      <legend class={`${legendText} mb-2.5`}>Motores</legend>
       {
         ENGINE_IDS.map((engine) => (
-          <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-subtle bg-inset p-3 transition-colors has-checked:border-accent has-checked:bg-accent/5">
-            <input
-              type="checkbox"
-              name="engine"
-              value={engine}
-              checked
-              class="mt-0.5 size-4 accent-accent"
-            />
+          <label class="flex cursor-pointer items-center gap-4 rounded-input border border-subtle bg-canvas px-5 py-4 transition-colors has-checked:border-strong">
+            <Checkbox name="engine" value={engine} checked />
             <span class="grid gap-0.5">
-              <span class="flex items-center gap-2 text-sm font-medium text-primary">
+              <span class="flex items-center gap-2 text-body-sm font-medium text-primary">
+                {/* The mark carries the engine's colour, so no separate dot is needed. */}
                 <span
-                  aria-hidden="true"
-                  class="inline-block size-2.5 rounded-full"
-                  style={`background-color: var(${ENGINE_DISPLAY[engine].colorVar})`}
+                  class="inline-flex"
+                  style={`color: var(${ENGINE_DISPLAY[engine].colorVar})`}
+                  set:html={icon(ENGINE_DISPLAY[engine].icon, 'size-5')}
                 />
                 {ENGINE_DISPLAY[engine].label}
               </span>
@@ -70,20 +79,22 @@ const numericFields = [
       }
     </fieldset>
 
-    <fieldset class="grid gap-2">
-      <legend class={legendText}>Operaciones</legend>
+    <fieldset class="grid gap-1">
+      <legend class={`${legendText} mb-2.5`}>Operaciones</legend>
       {
         OPERATION_IDS.map((operation) => (
-          <label class="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-raised">
-            <input
-              type="checkbox"
+          <label class="flex cursor-pointer items-center gap-4 rounded-input px-4 py-2.5 transition-colors hover:bg-raised">
+            <Checkbox
               name="operation"
               value={operation}
               checked={DEFAULT_CONFIG.operations.includes(operation)}
-              class="size-4 accent-accent"
+            />
+            <span
+              class="inline-flex shrink-0 text-secondary"
+              set:html={icon(OPERATION_DISPLAY[operation].icon, 'size-5')}
             />
             <span class="grid gap-0.5">
-              <span class="text-sm text-primary">{OPERATION_DISPLAY[operation].label}</span>
+              <span class="text-body-sm text-primary">{OPERATION_DISPLAY[operation].label}</span>
               <span class="text-xs text-muted">{OPERATION_DISPLAY[operation].description}</span>
             </span>
           </label>
@@ -91,12 +102,12 @@ const numericFields = [
       }
     </fieldset>
 
-    <fieldset class="grid gap-4">
-      <legend class={legendText}>Carga de trabajo</legend>
+    <fieldset class="grid gap-5">
+      <legend class={`${legendText} mb-2.5`}>Carga de trabajo</legend>
       {
         numericFields.map((field) => (
-          <div class="grid gap-1.5">
-            <label for={`field-${field.name}`} class="text-sm font-medium text-secondary">
+          <div class="grid gap-2">
+            <label for={`field-${field.name}`} class="px-2 text-body-sm font-medium text-secondary">
               {field.label}
             </label>
             <input
@@ -111,7 +122,7 @@ const numericFields = [
               aria-describedby={`hint-${field.name}`}
               class={numberField}
             />
-            <span id={`hint-${field.name}`} class="text-xs text-muted">
+            <span id={`hint-${field.name}`} class="px-2 text-xs text-muted">
               {field.hint}
             </span>
           </div>
@@ -122,34 +133,29 @@ const numericFields = [
     <ul
       data-ref="errors"
       hidden
-      class="grid gap-1 rounded-lg border border-error/40 bg-error/10 p-3 text-sm text-error"
+      class="grid gap-1 rounded-card bg-abyssal-ink p-6 text-body-sm text-pure-white"
     >
     </ul>
+   </div>
 
-    <div class="flex gap-2">
-      <button
-        type="submit"
-        data-ref="run"
-        class="flex-1 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        Ejecutar benchmark
+    <div class="flex flex-wrap gap-2.5 border-t border-subtle bg-surface px-10 py-6">
+      <button type="submit" data-ref="run" class={`flex-1 ${solidButton()}`}>
+        <span class="flex items-center justify-center gap-2">
+          <span data-ref="run-icon" class="inline-flex" set:html={icon('play', 'size-4')} />
+          <span data-ref="run-label">Ejecutar benchmark</span>
+        </span>
       </button>
-      <button
-        type="button"
-        data-ref="cancel"
-        hidden
-        class={ghostButton()}
-      >
+      <button type="button" data-ref="cancel" hidden class={ghostButton()}>
         Cancelar
       </button>
     </div>
   </form>
 
-  <div class="grid gap-6">
-    <section class={`${panel} p-5`} aria-labelledby="progress-heading">
+  <div class="grid gap-10">
+    <section class={panel} aria-labelledby="progress-heading">
       <div class="flex items-baseline justify-between gap-4">
-        <h2 id="progress-heading" class="text-sm font-semibold text-primary">Progreso de la ejecución</h2>
-        <span data-ref="progress-label" class="font-mono text-sm tnum text-secondary">0%</span>
+        <h2 id="progress-heading" class={legendText}>Progreso de la ejecución</h2>
+        <span data-ref="progress-label" class="font-mono text-body-sm tnum text-primary">0%</span>
       </div>
 
       <div
@@ -159,33 +165,35 @@ const numericFields = [
         aria-valuemin="0"
         aria-valuemax="100"
         aria-valuenow="0"
-        class="mt-3 h-2 overflow-hidden rounded-full bg-inset"
+        class="mt-5 h-3 overflow-hidden rounded-full bg-canvas"
       >
         <div
           data-ref="progress-bar"
           style="width: 0%"
-          class="h-full rounded-full bg-accent transition-[width] duration-150 ease-out"
+          class="h-full rounded-full bg-abyssal-ink transition-[width] duration-150 ease-out"
         >
         </div>
       </div>
 
-      <p data-ref="status" role="status" aria-live="polite" class="mt-3 text-sm text-secondary">
+      <p data-ref="status" role="status" aria-live="polite" class="mt-5 text-body text-secondary">
         En espera. Configura una ejecución e iníciala.
       </p>
     </section>
 
     <section class={panel} aria-labelledby="chart-heading">
-      <h2 id="chart-heading" class="px-5 pt-5 text-sm font-semibold text-primary">
+      <h2 id="chart-heading" class={`${legendText} flex items-center gap-2`}>
+        <Fragment set:html={icon('chart-bar', 'size-4')} />
         Comparación de latencia p95
       </h2>
-      <div data-ref="chart" class="px-5 pt-4 pb-5"></div>
+      <div data-ref="chart" class="pt-6"></div>
     </section>
 
-    <section class={panel} aria-labelledby="results-heading">
-      <h2 id="results-heading" class="px-5 pt-5 pb-1 text-sm font-semibold text-primary">
+    <section class={`${panel} px-0`} aria-labelledby="results-heading">
+      <h2 id="results-heading" class={`${legendText} flex items-center gap-2 px-10`}>
+        <Fragment set:html={icon('table-2', 'size-4')} />
         Distribución de latencia
       </h2>
-      <div data-ref="results"></div>
+      <div data-ref="results" class="pt-4"></div>
     </section>
   </div>
 </benchmark-console>

@@ -1,5 +1,5 @@
 ---
-import '@fontsource-variable/unbounded'
+import '@fontsource/bebas-neue'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/martian-mono'
 import '../styles/global.css'
@@ -23,13 +23,8 @@ const {
 		<link rel="icon" href="/favicon.ico" />
 		<meta name="generator" content={Astro.generator} />
 		<meta name="description" content={description} />
+		<meta name="color-scheme" content="light" />
 		<title>{title}</title>
-		<script is:inline>
-			// Runs before first paint so the stored theme never flashes the wrong palette.
-			const stored = localStorage.getItem('db-bench-theme')
-			const prefersDark = matchMedia('(prefers-color-scheme: dark)').matches
-			document.documentElement.dataset.theme = stored ?? (prefersDark ? 'dark' : 'light')
-		</script>
 	</head>
 	<body class="font-sans antialiased">
 		<slot />

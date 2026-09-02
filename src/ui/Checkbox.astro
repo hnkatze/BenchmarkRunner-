@@ -1,0 +1,34 @@
+---
+import { icon } from './icons'
+
+/**
+ * Caldera checkbox: a squared-off ink box that fills solid when checked.
+ *
+ * The native control is kept and only its paint removed (`appearance-none`),
+ * so the keyboard, the label association and the form value all keep working —
+ * a div pretending to be a checkbox would lose every one of them. The tick is a
+ * sibling revealed with `peer-checked`, because a checked native box cannot
+ * carry child content of its own.
+ */
+type Props = {
+  readonly name: string
+  readonly value: string
+  readonly checked?: boolean
+}
+
+const { name, value, checked = false } = Astro.props
+---
+
+<span class="relative inline-flex shrink-0">
+  <input
+    type="checkbox"
+    name={name}
+    value={value}
+    checked={checked}
+    class="peer size-5 cursor-pointer appearance-none rounded-md border-2 border-strong bg-transparent transition-colors checked:border-abyssal-ink checked:bg-abyssal-ink hover:bg-abyssal-ink/10 checked:hover:bg-abyssal-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-abyssal-ink"
+  />
+  <span
+    class="pointer-events-none absolute inset-0 flex items-center justify-center text-pure-white opacity-0 transition-opacity peer-checked:opacity-100"
+    set:html={icon('check', 'size-3.5')}
+  />
+</span>

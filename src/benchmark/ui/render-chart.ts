@@ -97,7 +97,7 @@ export const renderChart = (
         y1: `${TOP_PAD - 12}`,
         x2: `${x}`,
         y2: `${height - 10}`,
-        stroke: 'var(--border-subtle)',
+        stroke: 'var(--color-subtle)',
         'stroke-width': '1',
         'stroke-dasharray': '2 4',
       }),
@@ -107,7 +107,7 @@ export const renderChart = (
       x: `${x}`,
       y: `${TOP_PAD - 16}`,
       'text-anchor': 'middle',
-      fill: 'var(--text-muted)',
+      fill: 'var(--color-muted)',
       'font-size': '10',
       'font-family': 'var(--font-mono)',
     })
@@ -123,7 +123,7 @@ export const renderChart = (
       x: `${LABEL_WIDTH - 12}`,
       y: `${rowTop + (engines.length * (BAR_HEIGHT + BAR_GAP)) / 2 + 2}`,
       'text-anchor': 'end',
-      fill: 'var(--text-secondary)',
+      fill: 'var(--color-secondary)',
       'font-size': '12',
       'font-family': 'var(--font-sans)',
     })
@@ -149,7 +149,7 @@ export const renderChart = (
       const value = svgEl('text', {
         x: `${LABEL_WIDTH + barWidth + 8}`,
         y: `${y + BAR_HEIGHT - 2}`,
-        fill: 'var(--text-secondary)',
+        fill: 'var(--color-secondary)',
         'font-size': '11',
         'font-family': 'var(--font-mono)',
       })

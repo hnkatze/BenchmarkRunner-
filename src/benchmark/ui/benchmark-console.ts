@@ -14,6 +14,7 @@ import {
   type OperationResult,
   type RunState,
 } from '../domain'
+import { icon } from '../../ui/icons'
 import { COPY, failedStatus, finishedStatus, runningStatus, violationMessage } from './copy'
 import { renderChart } from './render-chart'
 import { renderResults } from './render-results'
@@ -41,6 +42,8 @@ export class BenchmarkConsole extends HTMLElement {
 
   #form: HTMLFormElement | null = null
   #runButton: HTMLButtonElement | null = null
+  #runLabel: HTMLElement | null = null
+  #runIcon: HTMLElement | null = null
   #cancelButton: HTMLButtonElement | null = null
   #progressBar: HTMLElement | null = null
   #progressTrack: HTMLElement | null = null
@@ -55,6 +58,8 @@ export class BenchmarkConsole extends HTMLElement {
   connectedCallback(): void {
     this.#form = this.querySelector<HTMLFormElement>('[data-ref="form"]')
     this.#runButton = this.querySelector<HTMLButtonElement>('[data-ref="run"]')
+    this.#runLabel = this.querySelector<HTMLElement>('[data-ref="run-label"]')
+    this.#runIcon = this.querySelector<HTMLElement>('[data-ref="run-icon"]')
     this.#cancelButton = this.querySelector<HTMLButtonElement>('[data-ref="cancel"]')
     this.#progressBar = this.querySelector<HTMLElement>('[data-ref="progress-bar"]')
     this.#progressTrack = this.querySelector<HTMLElement>('[data-ref="progress-track"]')
@@ -237,9 +242,17 @@ export class BenchmarkConsole extends HTMLElement {
     const total = state.status === 'running' ? state.totalSamples : 0
     const ratio = total > 0 ? completed / total : state.status === 'completed' ? 1 : 0
 
-    if (this.#runButton !== null) {
-      this.#runButton.disabled = isRunning
-      this.#runButton.textContent = isRunning ? COPY.buttons.running : COPY.buttons.run
+    if (this.#runButton !== null) this.#runButton.disabled = isRunning
+
+    // Write into the label, never the button: `textContent` on the button would
+    // wipe the icon markup rendered beside it.
+    if (this.#runLabel !== null) {
+      this.#runLabel.textContent = isRunning ? COPY.buttons.running : COPY.buttons.run
+    }
+    if (this.#runIcon !== null) {
+      this.#runIcon.innerHTML = isRunning
+        ? icon('loader-circle', 'size-4 animate-spin')
+        : icon('play', 'size-4')
     }
     if (this.#cancelButton !== null) this.#cancelButton.hidden = !isRunning
 

@@ -1,98 +1,106 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/* Caldera — Pixelated Cyber-Playground. See DESIGN.md.
+   Single theme: light. There is no dark palette, no [data-theme] attribute and
+   no `dark` variant. Removing them was a deliberate call, not an oversight:
+   the reference defines no dark values and a derived one would be invented. */
 
-:root {
-  color-scheme: light;
+@theme {
+  /* ---------------------------------------------------------------------
+     Palette — the seven Caldera colors, verbatim. Nothing else is a color.
+     --------------------------------------------------------------------- */
+  --color-basalt-canvas: #e2e2df;
+  --color-ash-white: #f7f6f2;
+  --color-abyssal-ink: #070607;
+  --color-pure-white: #ffffff;
+  --color-digital-orange: #fc5000;
+  --color-cyber-violet: #524ae9;
+  --color-pixel-glare: #f5f28e;
 
-  --bg-canvas: oklch(0.985 0.003 250);
-  --bg-surface: oklch(1 0 0);
-  --bg-raised: oklch(0.975 0.005 250);
-  --bg-inset: oklch(0.955 0.006 250);
+  /* ---------------------------------------------------------------------
+     Semantic aliases. Components name a role, never a color, so a palette
+     swap stays inside this block.
+     --------------------------------------------------------------------- */
+  --color-canvas: var(--color-basalt-canvas);
+  --color-surface: var(--color-ash-white);
+  --color-raised: #eeede9;
+  --color-inset: var(--color-basalt-canvas);
 
-  --border-subtle: oklch(0.9 0.008 250);
-  --border-strong: oklch(0.82 0.012 250);
+  /* Ink mixed toward the canvas. Caldera ships one text color; a data table
+     needs three levels of emphasis, so these are derived, not invented. */
+  --color-primary: var(--color-abyssal-ink);
+  --color-secondary: #494848;
+  --color-muted: #757473;
 
-  --text-primary: oklch(0.24 0.02 260);
-  --text-secondary: oklch(0.48 0.015 260);
-  --text-muted: oklch(0.62 0.012 260);
+  --color-subtle: #bbbab8;
+  --color-strong: var(--color-abyssal-ink);
 
-  --accent: oklch(0.55 0.19 265);
-  --accent-contrast: oklch(0.99 0 0);
+  /* Primary action is Abyssal Ink, NOT Digital Orange: the orange carries
+     engine identity in the chart and must not double as a UI accent. */
+  --color-accent: var(--color-abyssal-ink);
+  --color-accent-contrast: var(--color-pure-white);
 
-  --engine-firestore: oklch(0.68 0.16 68);
-  --engine-mongodb: oklch(0.6 0.15 155);
+  /* Engine identity. Orange + violet is Caldera's own two-tone graphic pair,
+     so the chart reads as brand rather than as an exception to it. */
+  --color-firestore: var(--color-digital-orange);
+  --color-mongodb: var(--color-cyber-violet);
 
-  --status-ok: oklch(0.58 0.14 155);
-  --status-warn: oklch(0.7 0.15 75);
-  --status-error: oklch(0.55 0.2 25);
-}
+  /* Status. The palette holds no red, so error is expressed as inverted ink —
+     a solid black block on a beige canvas is the loudest signal available. */
+  --color-ok: var(--color-abyssal-ink);
+  --color-warn: var(--color-pixel-glare);
+  --color-error: var(--color-abyssal-ink);
 
-[data-theme="dark"] {
-  color-scheme: dark;
-
-  --bg-canvas: oklch(0.17 0.012 260);
-  --bg-surface: oklch(0.21 0.014 260);
-  --bg-raised: oklch(0.25 0.016 260);
-  --bg-inset: oklch(0.15 0.012 260);
-
-  --border-subtle: oklch(0.3 0.018 260);
-  --border-strong: oklch(0.4 0.02 260);
-
-  --text-primary: oklch(0.96 0.005 260);
-  --text-secondary: oklch(0.78 0.012 260);
-  --text-muted: oklch(0.62 0.014 260);
-
-  --accent: oklch(0.7 0.16 265);
-  --accent-contrast: oklch(0.16 0.01 260);
-
-  --engine-firestore: oklch(0.78 0.15 72);
-  --engine-mongodb: oklch(0.75 0.17 158);
-
-  --status-ok: oklch(0.75 0.16 158);
-  --status-warn: oklch(0.8 0.14 78);
-  --status-error: oklch(0.68 0.18 22);
-}
-
-@theme inline {
-  /* Dashboard shell width. Wide enough for the comparison table and chart,
-     capped so content stays readable on ultrawide monitors. */
-  --container-dashboard: 110rem;
-
-  /* Titles only, and only at display sizes. Unbounded is ultra-extended and
-     illegible below ~20px. Named -title, not -display, to avoid colliding with
-     the CSS font-display descriptor. */
-  --font-title: "Unbounded Variable", "Inter Variable", system-ui, sans-serif;
+  /* ---------------------------------------------------------------------
+     Typography
+     --------------------------------------------------------------------- */
+  /* Display only. Bebas Neue is the reference's declared substitute for
+     PP Neue Corp Compact Ultrabold, which is a commercial licence. It is
+     caps-only by design and illegible as body text. Named -title, not
+     -display, to avoid colliding with the CSS font-display descriptor. */
+  --font-title: "Bebas Neue", "Inter Variable", system-ui, sans-serif;
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Martian Mono Variable", ui-monospace, "SF Mono", monospace;
 
-  --color-canvas: var(--bg-canvas);
-  --color-surface: var(--bg-surface);
-  --color-raised: var(--bg-raised);
-  --color-inset: var(--bg-inset);
+  /* The reference lists letter-spacing as "0.02px", which is invisible at any
+     size. The font token states 0.0200em; em is the one that was meant. */
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 1.25;
+  --text-body: 16px;
+  --text-body--line-height: 1.55;
+  --text-subheading: 30px;
+  --text-subheading--line-height: 1.11;
+  --text-heading-sm: 32px;
+  --text-heading-sm--line-height: 0.95;
+  --text-heading-sm--letter-spacing: 0.02em;
+  --text-heading: 56px;
+  --text-heading--line-height: 0.94;
+  --text-heading--letter-spacing: 0.02em;
+  --text-display: 96px;
+  --text-display--line-height: 0.94;
+  --text-display--letter-spacing: 0.02em;
 
-  --color-subtle: var(--border-subtle);
-  --color-strong: var(--border-strong);
+  /* ---------------------------------------------------------------------
+     Shapes. Caldera's spacing scale (4/8/10/12/16/20/24/32/40/…px) is the
+     Tailwind rem scale in disguise — p-10 already is 40px — so it is not
+     redefined here. Only the radii are, because those are genuinely new.
+     --------------------------------------------------------------------- */
+  --radius-card: 40px;
+  --radius-input: 100px;
+  --radius-button: 800px;
 
-  --color-primary: var(--text-primary);
-  --color-secondary: var(--text-secondary);
-  --color-muted: var(--text-muted);
-
-  --color-accent: var(--accent);
-  --color-accent-contrast: var(--accent-contrast);
-
-  --color-firestore: var(--engine-firestore);
-  --color-mongodb: var(--engine-mongodb);
-
-  --color-ok: var(--status-ok);
-  --color-warn: var(--status-warn);
-  --color-error: var(--status-error);
+  /* ---------------------------------------------------------------------
+     Layout. The dashboard shell stays wider than Caldera's 1200px: the
+     comparison table and the chart have to coexist. 1200px is kept for prose.
+     --------------------------------------------------------------------- */
+  --container-dashboard: 110rem;
+  --container-prose: 1200px;
 }
 
 @layer base {
   html {
-    background-color: var(--bg-canvas);
-    color: var(--text-primary);
+    background-color: var(--color-canvas);
+    color: var(--color-primary);
   }
 
   /* Tabular figures keep latency columns from shifting as digits change. */
