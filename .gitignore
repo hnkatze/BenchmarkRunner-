@@ -33,3 +33,6 @@ pnpm-debug.log*
 .kiro/
 skills-lock.json
 AGENTS.md
+
+# playwright-mcp scratch output
+.playwright-mcp/
