@@ -1,17 +1,11 @@
 import { cert, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
+import { readEnv } from './env'
 
 /**
  * Server-only. Importing this from anything the browser bundles would ship the
  * service-account key to every visitor.
  */
-
-const readEnv = (name: string): string | undefined => {
-  const fromAstro = import.meta.env[name]
-  if (typeof fromAstro === 'string' && fromAstro.length > 0) return fromAstro
-  const fromNode = process.env[name]
-  return typeof fromNode === 'string' && fromNode.length > 0 ? fromNode : undefined
-}
 
 export type FirestoreConfigError = { readonly missing: readonly string[] }
 
@@ -54,9 +48,3 @@ export const getFirestoreClient = (): Firestore | FirestoreConfigError => {
 export const isConfigError = (
   value: Firestore | FirestoreConfigError,
 ): value is FirestoreConfigError => 'missing' in value
-
-export const maxIterations = (): number => {
-  const raw = readEnv('BENCH_MAX_ITERATIONS')
-  const parsed = raw === undefined ? Number.NaN : Number.parseInt(raw, 10)
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 500
-}

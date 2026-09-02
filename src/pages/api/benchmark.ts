@@ -1,8 +1,7 @@
 import type { APIRoute } from 'astro'
-import {
-  createFirestoreRunner,
-  type FirestoreRunnerOptions,
-} from '../../benchmark/adapters/firestore-runner'
+import { createFirestoreRunner } from '../../benchmark/adapters/firestore-runner'
+import { createMongoRunner } from '../../benchmark/adapters/mongo-runner'
+import { createSequentialRunner } from '../../benchmark/adapters/sequential-runner'
 import {
   CONFIG_LIMITS,
   DEFAULT_CONFIG,
@@ -14,20 +13,42 @@ import {
   type BenchmarkRunner,
   type OperationId,
 } from '../../benchmark/domain'
-import { getFirestoreClient, isConfigError, maxIterations } from '../../server/firestore-client'
+import { maxIterations } from '../../server/env'
+import { getFirestoreClient, isConfigError } from '../../server/firestore-client'
+import { getMongoClient, isMongoConfigError } from '../../server/mongo-client'
 
 export const prerender = false
+
+/** Which env vars an engine is missing. Reported instead of a generic failure. */
+type EngineConfigError = { readonly missing: readonly string[] }
+
+/**
+ * Builds an engine's runner, or reports what its configuration lacks. Each
+ * engine resolves its OWN client, so asking for one never fails on the other's
+ * credentials.
+ */
+type EngineFactory = (limit: number) => BenchmarkRunner | EngineConfigError
 
 /**
  * Adding an EngineId fails to compile until it is listed here, and null keeps an
  * unwired engine rejected instead of silently running against another adapter.
  */
-const ENGINE_RUNNERS: Readonly<
-  Record<EngineId, ((deps: FirestoreRunnerOptions) => BenchmarkRunner) | null>
-> = {
-  firestore: createFirestoreRunner,
-  mongodb: null,
+const ENGINE_RUNNERS: Readonly<Record<EngineId, EngineFactory | null>> = {
+  firestore: (limit) => {
+    const db = getFirestoreClient()
+    return isConfigError(db) ? db : createFirestoreRunner({ db, maxIterations: limit })
+  },
+  mongodb: (limit) => {
+    const handle = getMongoClient()
+    return isMongoConfigError(handle)
+      ? handle
+      : createMongoRunner({ db: handle.db, maxIterations: limit })
+  },
 }
+
+const isEngineConfigError = (
+  value: BenchmarkRunner | EngineConfigError,
+): value is EngineConfigError => 'missing' in value
 
 const SUPPORTED_ENGINES: readonly EngineId[] = (
   Object.keys(ENGINE_RUNNERS) as EngineId[]
@@ -94,11 +115,6 @@ const json = (payload: unknown, status: number): Response =>
   })
 
 export const POST: APIRoute = async ({ request }) => {
-  const client = getFirestoreClient()
-  if (isConfigError(client)) {
-    return json({ error: 'firestore-not-configured', missing: client.missing }, 503)
-  }
-
   let parsed: BenchmarkConfig | null = null
   try {
     parsed = parseConfig(await request.json())
@@ -115,18 +131,30 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: 'engine-not-wired', unsupported, supported: SUPPORTED_ENGINES }, 400)
   }
 
-  if (parsed.engines.length > 1) {
-    return json({ error: 'multi-engine-not-implemented', engines: parsed.engines }, 400)
-  }
+  // Credentials are resolved only once the engines are known: a MongoDB run must
+  // not fail because Firestore is unconfigured, or the other way round. Every
+  // engine is built BEFORE anything runs, so a misconfigured second engine is a
+  // clean 503 instead of a half-finished run.
+  const limit = maxIterations()
+  const runners: BenchmarkRunner[] = []
 
-  const engine = parsed.engines[0]
-  const factory = engine === undefined ? null : ENGINE_RUNNERS[engine]
-  if (factory === null || factory === undefined) {
-    return json({ error: 'engine-not-wired', supported: SUPPORTED_ENGINES }, 400)
+  for (const engine of parsed.engines) {
+    const factory = ENGINE_RUNNERS[engine]
+    if (factory === null) {
+      return json({ error: 'engine-not-wired', engine, supported: SUPPORTED_ENGINES }, 400)
+    }
+
+    const built = factory(limit)
+    if (isEngineConfigError(built)) {
+      return json({ error: 'engine-not-configured', engine, missing: built.missing }, 503)
+    }
+    runners.push(built)
   }
 
   const config = parsed
-  const runner = factory({ db: client, maxIterations: maxIterations() })
+  // Always through the combinator, one engine or several: a single code path.
+  // It runs them one after another — concurrent engines would measure contention.
+  const runner = createSequentialRunner(runners)
   const controller = new AbortController()
   request.signal.addEventListener('abort', () => controller.abort())
 

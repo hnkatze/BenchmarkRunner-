@@ -1,4 +1,4 @@
-import type { Firestore } from 'firebase-admin/firestore'
+import type { Db, ObjectId } from 'mongodb'
 import type { BenchmarkConfig } from '../domain/benchmark-config'
 import type { BenchmarkReport, OperationResult } from '../domain/benchmark-report'
 import type { BenchmarkRunner } from '../domain/benchmark-runner'
@@ -17,8 +17,9 @@ type BenchDoc = {
 }
 
 /**
- * Firestore counts a document's own field names and values toward its size, so
- * the padding is approximate — close enough to compare engines, not a guarantee.
+ * Mirrors the Firestore adapter's padding so both engines carry the same
+ * payload. BSON overhead differs from Firestore's own accounting, so the size
+ * is approximate on both sides — comparable, not exact.
  */
 const makeDoc = (seq: number, sizeBytes: number): BenchDoc => ({
   seq,
@@ -29,40 +30,42 @@ const makeDoc = (seq: number, sizeBytes: number): BenchDoc => ({
 
 const nowMs = (): number => Number(process.hrtime.bigint() / 1_000n) / 1000
 
-export type FirestoreRunnerOptions = {
-  readonly db: Firestore
+export type MongoRunnerOptions = {
+  readonly db: Db
   /** Hard ceiling applied server-side, whatever the client asks for. */
   readonly maxIterations: number
 }
 
 /**
- * Real Firestore adapter. Every phase seeds its own documents in a throwaway
- * collection and deletes them afterwards, so a run leaves no residue behind.
+ * Real MongoDB adapter. Every phase seeds its own documents in a throwaway
+ * collection and drops it afterwards, so a run leaves no residue behind.
  */
-export const createFirestoreRunner = (options: FirestoreRunnerOptions): BenchmarkRunner => {
+export const createMongoRunner = (options: MongoRunnerOptions): BenchmarkRunner => {
   const { db, maxIterations } = options
 
-  const deleteAll = async (collection: string): Promise<void> => {
-    const ref = db.collection(collection)
-    for (;;) {
-      const snapshot = await ref.limit(BATCH_SIZE).get()
-      if (snapshot.empty) return
-      const batch = db.batch()
-      for (const doc of snapshot.docs) batch.delete(doc.ref)
-      await batch.commit()
-    }
-  }
+  /**
+   * Firestore indexes every field automatically; MongoDB indexes only `_id`.
+   * Without this the filtered query would run a collection scan and the
+   * comparison would measure a missing index instead of the engine.
+   */
+  const seed = async (
+    collection: string,
+    count: number,
+    sizeBytes: number,
+  ): Promise<ObjectId[]> => {
+    const ref = db.collection<BenchDoc>(collection)
+    await ref.createIndex({ bucket: 1, seq: 1 })
 
-  const seed = async (collection: string, count: number, sizeBytes: number): Promise<string[]> => {
-    const ids: string[] = []
+    const ids: ObjectId[] = []
     for (let start = 0; start < count; start += BATCH_SIZE) {
-      const batch = db.batch()
-      for (let i = start; i < Math.min(start + BATCH_SIZE, count); i += 1) {
-        const ref = db.collection(collection).doc()
-        batch.set(ref, makeDoc(i, sizeBytes))
-        ids.push(ref.id)
+      const batch = Array.from({ length: Math.min(BATCH_SIZE, count - start) }, (_, offset) =>
+        makeDoc(start + offset, sizeBytes),
+      )
+      const result = await ref.insertMany(batch)
+      for (let i = 0; i < batch.length; i += 1) {
+        const id = result.insertedIds[i]
+        if (id !== undefined) ids.push(id)
       }
-      await batch.commit()
     }
     return ids
   }
@@ -71,58 +74,59 @@ export const createFirestoreRunner = (options: FirestoreRunnerOptions): Benchmar
   const runOnce = async (
     operation: OperationId,
     collection: string,
-    ids: readonly string[],
+    ids: readonly ObjectId[],
     index: number,
     config: BenchmarkConfig,
   ): Promise<number> => {
-    const ref = db.collection(collection)
+    const ref = db.collection<BenchDoc>(collection)
     const started = nowMs()
 
     switch (operation) {
       case 'insertOne':
-        await ref.doc().set(makeDoc(index, config.documentSizeBytes))
+        await ref.insertOne(makeDoc(index, config.documentSizeBytes))
         break
 
-      case 'insertMany': {
-        const batch = db.batch()
-        for (let i = 0; i < BATCH_SIZE; i += 1) {
-          batch.set(ref.doc(), makeDoc(index * BATCH_SIZE + i, config.documentSizeBytes))
-        }
-        await batch.commit()
+      case 'insertMany':
+        await ref.insertMany(
+          Array.from({ length: BATCH_SIZE }, (_, i) =>
+            makeDoc(index * BATCH_SIZE + i, config.documentSizeBytes),
+          ),
+        )
         break
-      }
 
       case 'findById': {
         const id = ids[index % ids.length]
         if (id === undefined) throw new Error('no seeded document to read')
-        await ref.doc(id).get()
+        await ref.findOne({ _id: id })
         break
       }
 
       case 'queryFiltered':
         await ref
-          .where('bucket', '==', index % 10)
-          .orderBy('seq')
+          .find({ bucket: index % 10 })
+          .sort({ seq: 1 })
           .limit(QUERY_LIMIT)
-          .get()
+          .toArray()
         break
 
       case 'updateOne': {
         const id = ids[index % ids.length]
         if (id === undefined) throw new Error('no seeded document to update')
-        await ref.doc(id).update({ createdAt: Date.now() })
+        await ref.updateOne({ _id: id }, { $set: { createdAt: Date.now() } })
         break
       }
 
       case 'deleteOne': {
         const id = ids[index]
         if (id === undefined) throw new Error('ran out of seeded documents to delete')
-        await ref.doc(id).delete()
+        await ref.deleteOne({ _id: id })
         break
       }
 
       case 'aggregate':
-        await ref.count().get()
+        // countDocuments, not a $group: the Firestore side runs count(), and a
+        // grouping stage would compare a richer query against a plain count.
+        await ref.countDocuments({})
         break
 
       default: {
@@ -136,7 +140,7 @@ export const createFirestoreRunner = (options: FirestoreRunnerOptions): Benchmar
 
   /**
    * deleteOne burns one document per call, so warmup needs its own documents:
-   * sharing them would make the measured phase re-delete tombstones for free.
+   * sharing them would make the measured phase delete nothing at all.
    */
   const seedCountFor = (operation: OperationId, iterations: number, warmup: number): number => {
     if (operation === 'deleteOne') return iterations + warmup
@@ -157,17 +161,16 @@ export const createFirestoreRunner = (options: FirestoreRunnerOptions): Benchmar
       for (const operation of config.operations) {
         if (signal.aborted) return
 
-        // Stable collection id, NOT one per run. A composite index in Firestore is
-        // defined per collection, so a timestamped name would need a new index for
-        // every run — which is why queryFiltered used to fail. The index survives
-        // an empty collection, so emptying is enough to leave no data behind.
+        // Stable collection id, matching the Firestore adapter. Mongo could use a
+        // fresh name — it builds its own index while seeding — but both engines
+        // must run against the same shape or the comparison drifts.
         const collection = `_bench_${operation}`
-        yield { type: 'phase-started', engine: 'firestore', operation, iterations }
+        yield { type: 'phase-started', engine: 'mongodb', operation, iterations }
 
         try {
-          // A run cut short (maxDuration, a crash) leaves documents behind and the
-          // next seed would measure against a polluted collection.
-          await deleteAll(collection)
+          // A run cut short leaves documents behind and the next seed would
+          // measure against a polluted collection.
+          await db.collection(collection).deleteMany({})
 
           const poolSize = seedCountFor(operation, iterations, config.warmupIterations)
           const ids = poolSize > 0 ? await seed(collection, poolSize, config.documentSizeBytes) : []
@@ -208,7 +211,7 @@ export const createFirestoreRunner = (options: FirestoreRunnerOptions): Benchmar
                 durations.push(outcome.value)
                 yield {
                   type: 'sample',
-                  engine: 'firestore',
+                  engine: 'mongodb',
                   operation,
                   durationMs: outcome.value,
                   index,
@@ -220,7 +223,7 @@ export const createFirestoreRunner = (options: FirestoreRunnerOptions): Benchmar
           }
 
           const result: OperationResult = {
-            engine: 'firestore',
+            engine: 'mongodb',
             operation,
             summary: summarizeLatencies(durations),
             errorCount,
@@ -229,11 +232,16 @@ export const createFirestoreRunner = (options: FirestoreRunnerOptions): Benchmar
           results.push(result)
           yield { type: 'phase-completed', result }
         } catch {
-          yield { type: 'phase-failed', engine: 'firestore', operation }
+          yield { type: 'phase-failed', engine: 'mongodb', operation }
         } finally {
-          await deleteAll(collection).catch((error: unknown) => {
-            console.error(`[bench] cleanup failed for ${collection}:`, error)
-          })
+          // deleteMany, not drop: dropping would take the index with it, and the
+          // collection is reused across runs. Emptying keeps both stable.
+          await db
+            .collection(collection)
+            .deleteMany({})
+            .catch((error: unknown) => {
+              console.error(`[bench] cleanup failed for ${collection}:`, error)
+            })
         }
       }
 
