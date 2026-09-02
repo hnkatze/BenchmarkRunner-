@@ -59,14 +59,17 @@ node scripts/import-service-account.mjs ruta/al/key.json --write
 
 ## Despliegue en Vercel
 
-El proyecto usa `@astrojs/vercel`; Vercel detecta Astro automáticamente. `vercel.json`
-fija dos cosas que **no** son opcionales:
+El proyecto usa `@astrojs/vercel`; Vercel detecta Astro automáticamente. Dos ajustes que
+**no** son opcionales:
 
-- **`regions: ["iad1"]`** — la función serverless es la que mide. Si Vercel la ubica lejos
-  de la región de la base de datos, cada muestra incluye esa distancia y el benchmark
-  deja de medir la base para medir la topología.
-- **`maxDuration: 60`** — el límite por defecto es de 10 s. A ~200 ms por operación, 200
-  iteraciones son unos 40 s y se cortarían a la mitad.
+- **`regions: ["iad1"]`** en `vercel.json` — la función serverless es la que mide. Si
+  Vercel la ubica lejos de la región de la base de datos, cada muestra incluye esa
+  distancia y el benchmark deja de medir la base para medir la topología.
+- **`maxDuration: 300` en el adaptador**, dentro de `astro.config.mjs`. Va ahí y no en el
+  bloque `functions` de `vercel.json`: el adaptador emite **una sola** función para todas
+  las rutas (`_render.func`), así que un patrón por archivo no matchea nada y rompe el
+  build. Una corrida completa son 200 iteraciones × 5 operaciones × 2 motores, unos 162 s
+  con las latencias medidas; con un techo de 60 s el reporte se truncaba sin avisar.
 
 ### Variables de entorno
 

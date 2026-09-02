@@ -200,13 +200,20 @@ Servidor de desarrollo en segundo plano: `astro dev --background`, y se maneja c
 ## Despliegue
 
 `@astrojs/vercel` como adaptador; el endpoint declara `export const prerender = false`.
-Lo de `vercel.json` **no es cosmético**:
 
-- **`regions: ["iad1"]`** — la función serverless es la que mide. Si Vercel la ubica lejos
-  de la base, cada muestra incluye esa distancia y el benchmark deja de medir la base para
-  medir la topología.
-- **`maxDuration: 60`** para `src/pages/api/benchmark.ts` — el default corta antes y una
-  corrida de 200 iteraciones a ~200 ms queda truncada a la mitad.
+- **`regions: ["iad1"]`** en `vercel.json` — la función serverless es la que mide. Si
+  Vercel la ubica lejos de la base, cada muestra incluye esa distancia y el benchmark deja
+  de medir la base para medir la topología.
+- **`maxDuration` va en el adaptador (`astro.config.mjs`), NO en `functions` de
+  `vercel.json`.** El adaptador emite **una sola** función para todas las rutas
+  (`_render.func`), así que un patrón por archivo como `src/pages/api/benchmark.ts` no
+  matchea nada y **rompe el build**: `doesn't match any Serverless Functions`.
+  Verificable en `.vercel/output/functions/_render.func/.vc-config.json` tras el build.
+- **`maxDuration: 300`, no 60.** Una corrida completa son 200 iteraciones × 5 operaciones
+  × 2 motores; a los ~110 ms medidos de Firestore y ~52 ms de MongoDB son unos **162 s**.
+  Con 60 se truncaba a un tercio y el reporte salía incompleto sin avisar.
+- Ese mismo archivo confirma `supportsResponseStreaming: true`, que es lo que el endpoint
+  SSE necesita para transmitir muestra a muestra en vez de responder al final.
 
 ## Estado actual
 

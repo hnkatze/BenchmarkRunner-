@@ -1,9 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["iad1"],
-  "functions": {
-    "src/pages/api/benchmark.ts": {
-      "maxDuration": 60
-    }
-  }
+  "regions": ["iad1"]
 }
