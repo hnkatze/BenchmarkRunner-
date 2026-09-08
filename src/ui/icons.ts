@@ -79,9 +79,43 @@ export const ICONS = define({
     kind: 'stroke',
     body: '<path d="m21.73 18l-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4m0 4h.01"/>',
   },
+  'circle-help': {
+    kind: 'stroke',
+    body: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  },
   'loader-circle': {
     kind: 'stroke',
     body: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  },
+
+  /* Queries — the noun each one asks about, never the engine. */
+  'user-round': {
+    kind: 'stroke',
+    body: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  },
+  'users-round': {
+    kind: 'stroke',
+    body: '<circle cx="10" cy="8" r="5"/><path d="M2 21a8 8 0 0 1 10.434-7.62M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>',
+  },
+  'calendar-range': {
+    kind: 'stroke',
+    body: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M3 10h18M8 2v4M7 14h3m4 0h3"/>',
+  },
+  star: {
+    kind: 'stroke',
+    body: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z"/>',
+  },
+  'git-merge': {
+    kind: 'stroke',
+    body: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/>',
+  },
+  'trending-up': {
+    kind: 'stroke',
+    body: '<path d="M16 7h6v6"/><path d="m22 7l-8.5 8.5l-5-5L2 17"/>',
+  },
+  award: {
+    kind: 'stroke',
+    body: '<path d="m15.477 12.89l1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>',
   },
 
   /* Engine marks. Solid glyphs, tinted with the engine's own colour. */

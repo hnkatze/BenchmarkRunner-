@@ -1,7 +1,8 @@
 import { compareByOperation, type OperationResult } from '../domain'
-import { COPY, chartLabel } from './copy'
+import { COPY, GLOSSARY, chartLabel } from './copy'
+import { infoTip } from '../../ui/info-tip'
 import { formatMs } from './format'
-import { ENGINE_DISPLAY, OPERATION_DISPLAY } from './labels'
+import { ENGINE_DISPLAY, PHASE_DISPLAY } from './labels'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
@@ -97,7 +98,9 @@ export const renderChart = (
         y1: `${TOP_PAD - 12}`,
         x2: `${x}`,
         y2: `${height - 10}`,
-        stroke: 'var(--color-subtle)',
+        // A gridline is a hairline, not a de-emphasised glyph: `subtle` now
+        // carries icons and would read a full step too dark behind the bars.
+        stroke: 'var(--color-hairline-strong)',
         'stroke-width': '1',
         'stroke-dasharray': '2 4',
       }),
@@ -127,7 +130,7 @@ export const renderChart = (
       'font-size': '12',
       'font-family': 'var(--font-sans)',
     })
-    label.textContent = OPERATION_DISPLAY[comparison.operation].label
+    label.textContent = PHASE_DISPLAY[comparison.operation].label
     svg.append(label)
 
     engines.forEach((result, barIndex) => {
@@ -157,14 +160,24 @@ export const renderChart = (
       svg.append(value)
 
       const title = svgEl('title', {})
-      title.textContent = `${display.label} — ${OPERATION_DISPLAY[comparison.operation].label}: p95 ${formatMs(result.summary.p95Ms)}`
+      title.textContent = `${display.label} — ${PHASE_DISPLAY[comparison.operation].label}: p95 ${formatMs(result.summary.p95Ms)}`
       svg.append(title)
     })
   })
 
   const caption = document.createElement('p')
-  caption.className = 'mt-3 text-xs text-muted'
-  caption.textContent = COPY.chart.caption
+  caption.className = 'mt-3 flex items-center gap-1.5 text-xs text-muted'
+  // Appended, never assigned: textContent on this node would wipe the tooltip.
+  caption.append(document.createTextNode(COPY.chart.caption))
+
+  const scaleTip = document.createElement('span')
+  scaleTip.className = 'inline-flex'
+  scaleTip.innerHTML = infoTip({
+    id: 'tip-chart-logScale',
+    term: GLOSSARY.logScale.term,
+    definition: GLOSSARY.logScale.definition,
+  })
+  caption.append(scaleTip)
 
   host.append(svg, caption)
 }

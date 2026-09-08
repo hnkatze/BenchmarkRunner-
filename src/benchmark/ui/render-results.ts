@@ -4,13 +4,14 @@ import {
   type EngineId,
   type OperationResult,
 } from '../domain'
-import { COPY, fasterBadge, tableCaption } from './copy'
+import { COPY, GLOSSARY, fasterBadge, tableCaption, type GlossaryTermId } from './copy'
 import { formatCount, formatMs, formatOps, formatSpeedup } from './format'
 import { icon } from '../../ui/icons'
-import { ENGINE_DISPLAY, OPERATION_DISPLAY } from './labels'
+import { infoTip } from '../../ui/info-tip'
+import { ENGINE_DISPLAY, PHASE_DISPLAY } from './labels'
 
 const NUMERIC_CELL = 'px-2.5 py-2 text-right tnum font-mono text-xs text-primary'
-const HEADER_CELL = 'px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted'
+const HEADER_CELL = 'px-3 py-2 text-right text-caption-uppercase font-medium text-muted'
 
 const cell = (className: string, text: string): HTMLTableCellElement => {
   const element = document.createElement('td')
@@ -38,14 +39,15 @@ const engineCell = (engine: EngineId): HTMLTableCellElement => {
 const winnerBadge = (text: string): HTMLElement => {
   const badge = document.createElement('span')
   badge.className =
-    'ml-2 rounded-button bg-pixel-glare px-3 py-1 text-[11px] font-semibold text-abyssal-ink'
+    'ml-2 rounded-pill bg-inset px-2.5 py-1 text-caption-uppercase font-semibold text-primary'
   badge.textContent = text
   return badge
 }
 
 /**
- * The palette holds no red, so a non-zero error count is inverted ink instead
- * of coloured text: a black pill in a beige table is the loudest signal here.
+ * Cursor does define a semantic red, but it is reserved for form and system
+ * errors — a failed benchmark operation is data, not a broken control. The
+ * count stays inverted ink: the only filled surface in a table of hairlines.
  * @param count - errors recorded during the phase
  * @returns the cell, plain and muted at zero
  */
@@ -61,7 +63,7 @@ const errorCell = (count: number): HTMLTableCellElement => {
   element.className = 'px-2.5 py-2 text-right'
   const pill = document.createElement('span')
   pill.className =
-    'inline-flex items-center gap-1.5 rounded-button bg-abyssal-ink px-3 py-1 font-mono text-xs tnum text-pure-white'
+    'inline-flex items-center gap-1.5 rounded-pill bg-primary px-2.5 py-1 font-mono text-caption tnum text-canvas'
   pill.innerHTML = icon('triangle-alert', 'size-3.5')
   pill.append(document.createTextNode(formatCount(count)))
   element.append(pill)
@@ -99,13 +101,13 @@ export const renderResults = (host: HTMLElement, results: readonly OperationResu
   }
 
   for (const comparison of compareByOperation(results)) {
-    const display = OPERATION_DISPLAY[comparison.operation]
+    const display = PHASE_DISPLAY[comparison.operation]
 
     const section = document.createElement('section')
-    section.className = 'border-b border-subtle last:border-b-0'
+    section.className = 'border-b border-hairline last:border-b-0'
 
     const heading = document.createElement('h3')
-    heading.className = 'flex flex-wrap items-baseline gap-x-2 px-10 pt-8 text-body font-semibold text-primary'
+    heading.className = 'flex flex-wrap items-baseline gap-x-2 px-10 pt-8 text-body-md font-semibold text-primary'
     heading.append(document.createTextNode(display.label))
 
     const hint = document.createElement('span')
@@ -138,22 +140,50 @@ export const renderResults = (host: HTMLElement, results: readonly OperationResu
 
     const head = document.createElement('thead')
     const headRow = document.createElement('tr')
-    const headings: readonly (readonly [string, string])[] = [
-      [COPY.table.engine, 'px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted'],
-      ['p50', HEADER_CELL],
-      ['p95', HEADER_CELL],
-      ['p99', HEADER_CELL],
-      [COPY.table.mean, HEADER_CELL],
-      [COPY.table.max, HEADER_CELL],
-      [COPY.table.throughput, HEADER_CELL],
-      [COPY.table.errors, HEADER_CELL],
+    type Heading = readonly [label: string, className: string, term: GlossaryTermId | null]
+    const headings: readonly Heading[] = [
+      [
+        COPY.table.engine,
+        'px-3 py-2 text-left text-caption-uppercase font-medium text-muted',
+        null,
+      ],
+      ['p50', HEADER_CELL, 'p50'],
+      ['p95', HEADER_CELL, 'p95'],
+      ['p99', HEADER_CELL, 'p99'],
+      [COPY.table.mean, HEADER_CELL, 'mean'],
+      [COPY.table.max, HEADER_CELL, 'max'],
+      [COPY.table.throughput, HEADER_CELL, 'throughput'],
+      [COPY.table.errors, HEADER_CELL, 'errors'],
     ]
 
-    for (const [text, className] of headings) {
+    for (const [text, className, term] of headings) {
       const th = document.createElement('th')
       th.scope = 'col'
       th.className = className
-      th.textContent = text
+
+      if (term === null) {
+        th.textContent = text
+        headRow.append(th)
+        continue
+      }
+
+      // Never assign textContent on a node that also holds injected markup: it
+      // would wipe the tooltip. Label and trigger are appended side by side, and
+      // the id is scoped by operation because every table repeats these columns.
+      const wrapper = document.createElement('span')
+      wrapper.className = 'inline-flex items-center gap-1.5'
+      wrapper.append(document.createTextNode(text))
+
+      const tip = document.createElement('span')
+      tip.className = 'inline-flex'
+      tip.innerHTML = infoTip({
+        id: `tip-${comparison.operation}-${term}`,
+        term: GLOSSARY[term].term,
+        definition: GLOSSARY[term].definition,
+      })
+      wrapper.append(tip)
+
+      th.append(wrapper)
       headRow.append(th)
     }
     head.append(headRow)
@@ -162,7 +192,7 @@ export const renderResults = (host: HTMLElement, results: readonly OperationResu
     const body = document.createElement('tbody')
     for (const result of rows) {
       const row = document.createElement('tr')
-      row.className = 'border-t border-subtle/60'
+      row.className = 'border-t border-hairline'
       row.append(
         engineCell(result.engine),
         cell(NUMERIC_CELL, formatMs(result.summary.p50Ms)),

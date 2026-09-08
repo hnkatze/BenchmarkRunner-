@@ -4,6 +4,7 @@ import type { BenchmarkConfig, ConfigViolation } from '../domain'
 const FIELD_LABELS: Readonly<Record<keyof BenchmarkConfig, string>> = {
   engines: 'Motores',
   operations: 'Operaciones',
+  queries: 'Consultas',
   iterations: 'Iteraciones',
   warmupIterations: 'Calentamiento',
   documentSizeBytes: 'Tamaño del documento',
@@ -82,3 +83,98 @@ export const serverError = (status: number, detail: string): string =>
 
 export const chartLabel = (operations: number): string =>
   `Latencia p95 por operación y motor, escala logarítmica, ${operations} operaciones`
+
+/* ── Glossary ───────────────────────────────────────────────────────────────
+   One wording per term, reused by the table tooltips, the form tooltips and
+   the project write-up. A metric explained twice drifts into two meanings. */
+
+export type GlossaryTermId =
+  | 'latency'
+  | 'p50'
+  | 'p95'
+  | 'p99'
+  | 'mean'
+  | 'max'
+  | 'throughput'
+  | 'errors'
+  | 'iterations'
+  | 'warmup'
+  | 'documentSize'
+  | 'concurrency'
+  | 'logScale'
+
+export type GlossaryEntry = {
+  /** Heading of the tooltip; may read fuller than the column label. */
+  readonly term: string
+  /** One or two sentences. Longer than that stops being a tooltip. */
+  readonly definition: string
+}
+
+/** Keyed on the union so a new term fails to compile until it is defined. */
+export const GLOSSARY: Readonly<Record<GlossaryTermId, GlossaryEntry>> = {
+  latency: {
+    term: 'Latencia',
+    definition:
+      'Tiempo entre pedir la operación y recibir su confirmación, medido en el servidor. Incluye el viaje de red hasta la base, no solo el trabajo del motor.',
+  },
+  p50: {
+    term: 'p50 · mediana',
+    definition:
+      'La mitad de las muestras tardó menos que este valor. Describe la ejecución típica, no la peor.',
+  },
+  p95: {
+    term: 'p95',
+    definition:
+      'El 95 % de las muestras tardó menos que este valor. Es la cola que el usuario percibe como lentitud, y por eso el ganador de cada operación se decide aquí y no por la media.',
+  },
+  p99: {
+    term: 'p99',
+    definition:
+      'El 1 % más lento. Con pocas muestras es muy inestable: un solo pico lo mueve entero.',
+  },
+  mean: {
+    term: 'Media',
+    definition:
+      'Promedio de todas las muestras. Una sola muestra extrema la arrastra hacia arriba, así que puede esconder una cola mala tanto como inventarla.',
+  },
+  max: {
+    term: 'Máximo',
+    definition:
+      'La muestra más lenta de la fase. Dice hasta dónde llegó el peor caso; como es un único dato, no sirve para comparar motores.',
+  },
+  throughput: {
+    term: 'Rendimiento',
+    definition:
+      'Operaciones completadas por segundo sobre el tiempo real de la fase. No es la inversa de la media: al subir la concurrencia cada operación tarda más y el rendimiento sube igual.',
+  },
+  errors: {
+    term: 'Errores',
+    definition:
+      'Operaciones que fallaron. No entran en los percentiles, así que las columnas de latencia describen únicamente lo que sí llegó a completarse.',
+  },
+  iterations: {
+    term: 'Iteraciones',
+    definition:
+      'Muestras medidas por cada motor y cada operación. Cuantas más, más confiable es la cola: con diez muestras el p95 es poco más que una anécdota.',
+  },
+  warmup: {
+    term: 'Calentamiento',
+    definition:
+      'Operaciones que se ejecutan y se descartan antes de empezar a medir, para que abrir la conexión y llenar cachés no se cuele en los números.',
+  },
+  documentSize: {
+    term: 'Tamaño del documento',
+    definition:
+      'Bytes aproximados del documento de prueba. Cuanto más crece, más pesan la red y la serialización frente al motor.',
+  },
+  concurrency: {
+    term: 'Concurrencia',
+    definition:
+      'Operaciones en vuelo al mismo tiempo. Con 1 se mide latencia pura; al subir, cada operación tarda más pero el trabajo total por segundo crece.',
+  },
+  logScale: {
+    term: 'Escala logarítmica',
+    definition:
+      'Cada marca del eje multiplica por diez. En escala lineal, un motor de 2 ms al lado de uno de 200 ms sería una raya invisible.',
+  },
+}
