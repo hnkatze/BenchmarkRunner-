@@ -238,6 +238,14 @@ Los borrados también consumen cupo, así que rehacer una siembra en Firestore c
 de borrados más otro de escrituras: **hay un intento por día**. El seeder guarda el progreso
 en `.seed-state.<motor>.<escala>.json` y `Ctrl+C` no lo pierde.
 
+**`ANALISIS.md` es el entregable del estudio.** Cubre los nueve criterios con los
+números medidos y, sobre todo, con lo que cada motor NO permite medir. Si cambia una
+medición, se actualiza ahí — no en un comentario suelto.
+
+`GET /api/context` reporta en vivo las condiciones de cada motor: red (mediana de 7
+muestras), tamaño y parámetros. Nunca se cachea: un contexto cacheado describiría una
+base de otro momento al lado de números de este.
+
 ### Las asimetrías, que son el hallazgo
 
 - **Firestore no tiene subqueries, JOIN, GROUP BY ni HAVING.** 5 de los 10 queries corren

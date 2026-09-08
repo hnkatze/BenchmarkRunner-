@@ -245,6 +245,20 @@ const numericFields = [
       <div data-ref="chart" class="pt-6"></div>
     </section>
 
+    <section class={panel} aria-labelledby="context-heading">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <h2 id="context-heading" class={`${legendText} flex items-center gap-2`}>
+          <Fragment set:html={icon('circle-alert', 'size-4')} />
+          Condiciones de la medición
+        </h2>
+        <button type="button" data-ref="context-refresh" class={ghostButton('sm')}>
+          Volver a medir
+        </button>
+      </div>
+      {/* A number without its conditions is an anecdote, not a measurement. */}
+      <div data-ref="context" class="pt-6"></div>
+    </section>
+
     <section class={`${panel} px-0`} aria-labelledby="results-heading">
       <h2 id="results-heading" class={`${legendText} flex items-center gap-2 px-10`}>
         <Fragment set:html={icon('table-2', 'size-4')} />
@@ -256,8 +270,20 @@ const numericFields = [
 </benchmark-console>
 
 <script>
+  import { renderContext } from '../../dataset/ui/render-context'
   import { initInfoTips } from '../../ui/info-tip'
   import './benchmark-console'
+
+  // Fetched after paint, never during render: the probe pings both engines
+  // seven times each, and blocking the page on that would trade a working
+  // console for a spinner.
+  const contextHost = document.querySelector('[data-ref="context"]')
+  if (contextHost instanceof HTMLElement) {
+    void renderContext(contextHost)
+    document
+      .querySelector('[data-ref="context-refresh"]')
+      ?.addEventListener('click', () => void renderContext(contextHost))
+  }
 
   // Delegated once for the whole document: the results table rebuilds its
   // headers on every event, so its tooltips are wired after this runs.
