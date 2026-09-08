@@ -36,3 +36,6 @@ AGENTS.md
 
 # playwright-mcp scratch output
 .playwright-mcp/
+
+# seeder progress — describes one machine's database, never the repo's
+.seed-state.*.json
