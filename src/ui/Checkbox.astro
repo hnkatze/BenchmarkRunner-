@@ -2,7 +2,7 @@
 import { icon } from './icons'
 
 /**
- * Caldera checkbox: a squared-off ink box that fills solid when checked.
+ * Checkbox: a squared-off ink box that fills solid when checked.
  *
  * The native control is kept and only its paint removed (`appearance-none`),
  * so the keyboard, the label association and the form value all keep working —
@@ -25,10 +25,10 @@ const { name, value, checked = false } = Astro.props
     name={name}
     value={value}
     checked={checked}
-    class="peer size-5 cursor-pointer appearance-none rounded-md border-2 border-strong bg-transparent transition-colors checked:border-abyssal-ink checked:bg-abyssal-ink hover:bg-abyssal-ink/10 checked:hover:bg-abyssal-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-abyssal-ink"
+    class="peer size-5 cursor-pointer appearance-none rounded-md border-2 border-hairline-strong bg-transparent transition-colors checked:border-primary checked:bg-primary hover:bg-primary/10 checked:hover:bg-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
   />
   <span
-    class="pointer-events-none absolute inset-0 flex items-center justify-center text-pure-white opacity-0 transition-opacity peer-checked:opacity-100"
+    class="pointer-events-none absolute inset-0 flex items-center justify-center text-canvas opacity-0 transition-opacity peer-checked:opacity-100"
     set:html={icon('check', 'size-3.5')}
   />
 </span>
