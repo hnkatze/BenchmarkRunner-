@@ -1,9 +1,15 @@
+import type { QueryId } from '../../dataset/domain/queries.ts'
 import type { EngineId } from './engine'
 import type { OperationId } from './operation'
 
 export type BenchmarkConfig = {
   readonly engines: readonly EngineId[]
   readonly operations: readonly OperationId[]
+  /**
+   * The read queries to measure against the seeded dataset. Empty means the run
+   * is CRUD-only, which is what every existing caller asks for.
+   */
+  readonly queries: readonly QueryId[]
   readonly iterations: number
   readonly warmupIterations: number
   readonly documentSizeBytes: number
@@ -41,7 +47,7 @@ export const validateConfig = (config: BenchmarkConfig): readonly ConfigViolatio
   if (config.engines.length === 0) {
     violations.push({ field: 'engines', code: 'empty-selection' })
   }
-  if (config.operations.length === 0) {
+  if (config.operations.length === 0 && config.queries.length === 0) {
     violations.push({ field: 'operations', code: 'empty-selection' })
   }
 
@@ -64,6 +70,7 @@ export const validateConfig = (config: BenchmarkConfig): readonly ConfigViolatio
 export const DEFAULT_CONFIG: BenchmarkConfig = {
   engines: ['firestore', 'mongodb'],
   operations: ['insertOne', 'findById', 'queryFiltered', 'updateOne', 'deleteOne'],
+  queries: [],
   iterations: 200,
   warmupIterations: 20,
   documentSizeBytes: 1024,

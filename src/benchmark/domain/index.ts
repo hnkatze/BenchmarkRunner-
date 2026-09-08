@@ -4,6 +4,9 @@ export type { EngineId } from './engine'
 export { OPERATIONS, OPERATION_IDS, isOperationId } from './operation'
 export type { OperationId } from './operation'
 
+export { PHASE_IDS, isOperationPhase, isPhaseId } from './phase'
+export type { PhaseId } from './phase'
+
 export { EMPTY_LATENCY_SUMMARY, summarizeLatencies } from './latency'
 export type { LatencySummary } from './latency'
 

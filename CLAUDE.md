@@ -111,10 +111,15 @@ buscar sus tablas:
 | `src/benchmark/ui/` | Web Component vanilla, tabla, gráfico SVG, y **todos** los textos en `copy.ts`. |
 | `src/server/` | Credenciales y clientes. Solo servidor, nunca importado desde `ui/`. `env.ts` es el único lugar que lee variables de entorno. |
 | `src/pages/api/` | Endpoint SSE. Valida entrada y despacha por motor. |
+| `src/dataset/domain/` | Las 8 colecciones, el generador determinista, los índices compartidos, los 10 queries y el puerto `DatasetSeeder`. Importable desde Vite **y** desde Node, por eso usa extensiones `.ts` explícitas. |
+| `src/dataset/adapters/` | Seeders (`mongo-seeder`, `firestore-seeder`) y las implementaciones de los 10 queries por motor. |
+| `src/pages/proyecto.astro` | Página de divulgación para exponer el proyecto: arquitectura, método, decisiones, resultados, glosario y límites. Reusa `GLOSSARY` de `ui/copy.ts`. |
+| `src/ui/diagrams/` | Diagramas SVG a mano (`PortDiagram`, `RunFlowDiagram`, `PhaseDiagram`) y `Figure.astro`, la tarjeta que les pone piso de ancho legible. |
 
-Tipografía: **Bebas Neue** (`font-title`) solo en display, es caps-only e ilegible como
-texto corrido; **Inter** para UI; **Martian Mono** para datos, con `.tnum` para que las
-columnas de latencia no se muevan mientras entran las muestras.
+Tipografía: **una sola sans, Inter** (sustituto declarado de CursorGothic), para display
+y cuerpo por igual — la voz de display sale del tamaño y el tracking negativo en peso 400,
+nunca del peso. **JetBrains Mono** para datos y código, con `.tnum` para que las columnas
+de latencia no se muevan mientras entran las muestras.
 
 ## Convenciones de código
 
@@ -133,27 +138,45 @@ columnas de latencia no se muevan mientras entran las muestras.
 
 ## Estilos
 
-**`DESIGN.md` es vinculante.** Define el sistema (Caldera) y, más importante, qué reglas
+**`DESIGN.md` es vinculante.** Define el sistema (Cursor) y, más importante, qué reglas
 funcionales el estilo no puede pisar. Leerlo antes de tocar una clase.
 
 Tailwind v4 sin archivo de config: los tokens se declaran en `src/styles/global.css`
 dentro de `@theme`.
 
 - **Un solo tema, claro.** No hay modo oscuro, ni atributo `data-theme`, ni variante
-  `dark`, ni script anti-flash. Se eliminaron a propósito: Caldera no define valores
+  `dark`, ni script anti-flash. Se eliminaron a propósito: Cursor no define valores
   oscuros. `Layout.astro` declara `<meta name="color-scheme" content="light">`.
 - **Los componentes nombran un rol, nunca un color.** `bg-surface`, `text-primary`,
-  `rounded-card`. Los siete colores de Caldera solo aparecen en el bloque de alias de
-  `global.css` — y las excepciones deliberadas (`bg-pixel-glare`, `bg-abyssal-ink` para
-  el error invertido), documentadas en `DESIGN.md`.
+  `border-hairline`, `rounded-card`. Los colores de Cursor solo aparecen en el bloque de
+  alias de `global.css`.
 - **`--color-firestore` y `--color-mongodb` no se reutilizan en la UI.** El color es el
-  identificador del motor en gráfico, tabla y leyenda. Por eso la acción primaria es
-  `Abyssal Ink` y no el naranja.
-- **`render-chart.ts` consume tokens por nombre desde JS** (`'var(--color-subtle)'`).
-  Renombrar un token en `global.css` sin actualizar esos strings **no rompe la
-  compilación**: el SVG se pinta con el valor por defecto y falla en silencio. Igual
-  `colorVar` en `ui/labels.ts`. Verificar con
-  `rg -n "var\(--" src/ --glob '*.ts'` tras cualquier cambio de tokens.
+  identificador del motor en gráfico, tabla y leyenda. **Por eso la acción primaria es
+  tinta y no el naranja**, aunque el `button primary` de Cursor sí sea naranja: un botón
+  del color de Firestore haría mentir al gráfico. Cursor documenta un `button download`
+  con fondo tinta, así que el desvío queda dentro del sistema.
+- **Los pastel de `timeline-*` no pueden ser series de gráfico.** Están calibrados como
+  relleno de pastilla con texto tinta encima: `timeline-read` mide 1.84:1 contra el
+  canvas, debajo del 3:1 que exige un objeto gráfico. Firestore mide 3.28:1 y MongoDB
+  5.57:1. Medir antes de proponer un color.
+- **Mayúsculas solo en `caption-uppercase` (11px).** Bebas Neue era caps-only y hacía
+  gratis el `uppercase` en títulos; **Inter no**. Ningún `display-*` lleva `uppercase`,
+  y ninguno lleva `leading-none`: los tokens ya traen su interlínea y forzarla a 1 corta
+  las descendentes.
+- **El mono carga toda columna numérica, con `.tnum`.** Sin cifras tabulares las columnas
+  de latencia bailan mientras entran las muestras.
+- **Tokens muertos: la trampa que no rompe la compilación.** Dos superficies los
+  consumen por nombre y fallan en silencio:
+  1. Strings `var(--...)` desde JS (`render-chart.ts`, `colorVar` en `ui/labels.ts`) —
+     el SVG se pinta con el valor por defecto.
+  2. Clases `fill-*` / `stroke-*` en los diagramas — **peor**: una `fill-*` inexistente
+     no deja el elemento sin pintar, lo deja con el negro por defecto de SVG. En la
+     migración desde Caldera, `fill-pure-white` puso texto negro sobre caja negra.
+
+  Tras cualquier cambio de tokens: `rg -n "var\(--" src/` y
+  `rg -o "(fill|stroke)-[a-z-]+" src/ | sort -u`, y confirmar que cada nombre existe.
+- **El ancho de lectura se fija por bloque (`max-w-[70ch]`), no por token.** `max-w-prose`
+  es una utilidad fija de Tailwind (65ch) que una variable `--container-prose` **no pisa**.
 - Las clases se escriben como **strings estáticos** para que el escáner de Tailwind las
   vea. Las combinaciones repetidas se factorizan en recetas (`src/ui/button-recipes.ts`),
   nunca se construyen por interpolación.
@@ -163,11 +186,73 @@ dentro de `@theme`.
   totales de `ui/labels.ts`, así que agregar un `OperationId` sin icono no compila.
   La clase se pasa **literal** en el call site o Tailwind no la ve.
 - **Si un nodo contiene un icono, nunca asignarle `textContent` al padre**: borra el SVG.
-  Por eso el botón de ejecutar expone `[data-ref="run-label"]` y `[data-ref="run-icon"]`
-  y la isla escribe ahí, no en el `<button>`.
+  Por eso el botón de ejecutar expone `[data-ref="run-label"]` y `[data-ref="run-icon"]`,
+  y los encabezados de tabla envuelven rótulo y tooltip en un `span`.
 - **`src/ui/Checkbox.astro` es el input nativo con `appearance-none`**, no un `div`
   disfrazado: conserva teclado, `<label>`, valor de formulario y estado accesible.
   El tick se revela con `peer-checked`.
+- **Los diagramas nunca bajan de su ancho legible.** `Figure.astro` les pone piso de
+  52rem y los hace scrollear dentro de la tarjeta. La tarjeta lleva `min-w-0` o el piso
+  empuja el track del grid y **scrollea la página** en vez de la tarjeta.
+
+## Dataset y consultas — el estudio de capacidad
+
+El proyecto tiene **dos ejes**: el micro-benchmark de latencia CRUD original y un
+estudio de capacidad sobre un dataset sembrado. Los dos entran por el **mismo puerto**
+`BenchmarkRunner`: un query es, para la medición, lo mismo que una operación — corré esto
+N veces y devolveme las latencias. Por eso `PhaseId = OperationId | QueryId` y el reducer,
+la tabla, el gráfico y los percentiles sirven a los dos sin una línea de cambio.
+
+- **El generador es una función pura del índice, no un PRNG con semilla.** Un PRNG guarda
+  estado: el documento 500 dependería de haber generado el 499, y reanudar una siembra
+  cortada produciría datos distintos a una corrida limpia. Las dos bases dejarían de ser
+  idénticas en silencio. Verificado por `scripts/check-dataset.mjs`.
+- **Las fechas son milisegundos, no `Date`.** Mongo guarda BSON datetime y Firestore su
+  propio `Timestamp` con nanosegundos: al releerlos serían objetos distintos y el criterio
+  de identidad fallaría **al leer**, no al escribir.
+- **`orderItems` lleva `categoryId` denormalizado** porque Firestore no puede hacer JOIN
+  para llegar a él. La verificación comprueba que coincida con la categoría real del
+  producto: si no coincidiera, el `$lookup` de Mongo y la agregación por grupo de Firestore
+  estarían respondiendo **preguntas distintas**.
+- **La siembra es idempotente**: todo es upsert sobre el `_id` determinista, nunca insert.
+  Probado sembrando dos veces y **contando en la base**, no leyendo el log.
+- **Los índices se crean después de los datos y se cronometran aparte.** Crearlos antes
+  haría que cada escritura los mantenga, inflando la siembra y desinflando la indexación.
+- **`INDEXES` se declara una sola vez para los dos motores.** Si cada adaptador eligiera
+  los suyos, mediríamos una decisión de indexación en vez de un motor.
+
+### Los límites que definen el trabajo
+
+| | MongoDB Atlas M0 | Firestore Spark |
+|---|---|---|
+| Almacenamiento | 512 MB | 1 GiB |
+| Escrituras | sin cupo | **20.000/día** |
+| Lecturas | sin cupo | 50.000/día |
+| Borrados | sin cupo | 20.000/día |
+
+**1M de documentos son 50 días en Spark.** Por eso hay dos escalas: `PAIRED_SCALE` (18.000,
+pareada, dimensionada por el cupo diario con 2.000 de margen) y `SCALE_DEMO` (1.000.000,
+**solo MongoDB**, 101 MB medidos de los 512).
+
+Los borrados también consumen cupo, así que rehacer una siembra en Firestore cuesta un día
+de borrados más otro de escrituras: **hay un intento por día**. El seeder guarda el progreso
+en `.seed-state.<motor>.<escala>.json` y `Ctrl+C` no lo pierde.
+
+### Las asimetrías, que son el hallazgo
+
+- **Firestore no tiene subqueries, JOIN, GROUP BY ni HAVING.** 5 de los 10 queries corren
+  nativos; los otros 5 existen porque les escribimos el motor que falta a mano. Cada uno
+  declara su `FirestoreStrategy` tipada, y la UI la muestra al lado de la consulta.
+- **Las agregaciones se cobran 1 lectura por cada 1.000 entradas de índice**, no por
+  documento. Emular `GROUP BY` trayendo todo costaría 1.800.000 lecturas/día (36× sobre el
+  cupo); una agregación por grupo cuesta 3.000. **600× de diferencia** — pero exige
+  cardinalidad conocida y acotada, así que **no generaliza**.
+- **Firestore no puede crear índices compuestos desde el SDK.** Se declaran en
+  `firestore.indexes.json` (generado por `scripts/firestore-indexes.mjs` desde la misma
+  tabla) y se construyen en background: no hay momento del cliente que cronometrar.
+- **Firestore no expone el tamaño de la base por API.** Mongo lo da con `dbStats`.
+- **Firestore no tiene parámetros de cluster.** Es serverless: no hay tier, ni CPU, ni RAM.
+  Solo ubicación y modo. No se pueden "igualar parámetros"; solo declarar los dos lados.
 
 ## Comandos
 
@@ -178,6 +263,17 @@ npm run dev               # astro dev
 npm run build             # astro build — debe pasar antes de commitear
 npm run preview
 npx astro check           # 0 errores esperados; no hay script npm para esto
+```
+
+Dataset (Node, con stripping de tipos):
+
+```bash
+node --experimental-strip-types scripts/check-dataset.mjs          # verifica el generador ANTES de escribir
+node --experimental-strip-types --env-file=.env scripts/seed.mjs --dry-run
+node --experimental-strip-types --env-file=.env scripts/seed.mjs --scale=paired
+node --experimental-strip-types --env-file=.env scripts/seed.mjs --engine=firestore   # techo 19.000
+node --experimental-strip-types --env-file=.env scripts/seed.mjs --scale=demo         # 1M, solo Mongo
+node --experimental-strip-types scripts/firestore-indexes.mjs --write
 ```
 
 Verificación de credenciales y conectividad:

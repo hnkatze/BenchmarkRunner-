@@ -14,6 +14,7 @@ import {
   type OperationResult,
   type RunState,
 } from '../domain'
+import { isQueryId, type QueryId } from '../../dataset/domain/queries.ts'
 import { icon } from '../../ui/icons'
 import { COPY, failedStatus, finishedStatus, runningStatus, violationMessage } from './copy'
 import { renderChart } from './render-chart'
@@ -118,10 +119,16 @@ export class BenchmarkConsole extends HTMLElement {
 
     const engines = readChecked<EngineId>(form, 'engine', isEngineId)
     const operations = readChecked<OperationId>(form, 'operation', isOperationId)
+    const queries = readChecked<QueryId>(form, 'query', isQueryId)
 
     return {
       engines: engines.length > 0 ? engines : ENGINE_IDS,
-      operations: operations.length > 0 ? operations : OPERATION_IDS.slice(0, 1),
+      // A run needs at least one phase from either family. Falling back to a
+      // single operation only when BOTH are empty keeps a queries-only run
+      // from silently gaining a CRUD phase nobody asked for.
+      operations:
+        operations.length > 0 || queries.length > 0 ? operations : OPERATION_IDS.slice(0, 1),
+      queries,
       iterations: readNumber(form, 'iterations', DEFAULT_CONFIG.iterations),
       warmupIterations: readNumber(form, 'warmupIterations', DEFAULT_CONFIG.warmupIterations),
       documentSizeBytes: readNumber(form, 'documentSizeBytes', DEFAULT_CONFIG.documentSizeBytes),

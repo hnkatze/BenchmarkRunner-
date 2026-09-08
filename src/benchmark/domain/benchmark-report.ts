@@ -1,11 +1,11 @@
 import type { BenchmarkConfig } from './benchmark-config'
 import type { EngineId } from './engine'
 import type { LatencySummary } from './latency'
-import type { OperationId } from './operation'
+import type { PhaseId } from './phase'
 
 export type OperationResult = {
   readonly engine: EngineId
-  readonly operation: OperationId
+  readonly operation: PhaseId
   readonly summary: LatencySummary
   readonly errorCount: number
   /** Wall-clock of the whole phase. Required to report throughput under concurrency. */
@@ -29,7 +29,7 @@ export type BenchmarkReport = {
 }
 
 export type OperationComparison = {
-  readonly operation: OperationId
+  readonly operation: PhaseId
   readonly byEngine: ReadonlyMap<EngineId, OperationResult>
   readonly winner: EngineId | null
 }
@@ -43,7 +43,7 @@ export type OperationComparison = {
 export const compareByOperation = (
   results: readonly OperationResult[],
 ): readonly OperationComparison[] => {
-  const grouped = new Map<OperationId, Map<EngineId, OperationResult>>()
+  const grouped = new Map<PhaseId, Map<EngineId, OperationResult>>()
 
   for (const result of results) {
     const bucket = grouped.get(result.operation) ?? new Map<EngineId, OperationResult>()

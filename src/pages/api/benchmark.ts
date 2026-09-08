@@ -1,7 +1,10 @@
 import type { APIRoute } from 'astro'
 import { createFirestoreRunner } from '../../benchmark/adapters/firestore-runner'
 import { createMongoRunner } from '../../benchmark/adapters/mongo-runner'
+import { createQueryRunner } from '../../benchmark/adapters/query-runner'
 import { createSequentialRunner } from '../../benchmark/adapters/sequential-runner'
+import { FIRESTORE_QUERIES } from '../../dataset/adapters/firestore-queries.ts'
+import { MONGO_QUERIES } from '../../dataset/adapters/mongo-queries.ts'
 import {
   CONFIG_LIMITS,
   DEFAULT_CONFIG,
@@ -13,6 +16,7 @@ import {
   type BenchmarkRunner,
   type OperationId,
 } from '../../benchmark/domain'
+import { isQueryId, type QueryId } from '../../dataset/domain/queries.ts'
 import { maxIterations } from '../../server/env'
 import { getFirestoreClient, isConfigError } from '../../server/firestore-client'
 import { getMongoClient, isMongoConfigError } from '../../server/mongo-client'
@@ -27,7 +31,7 @@ type EngineConfigError = { readonly missing: readonly string[] }
  * engine resolves its OWN client, so asking for one never fails on the other's
  * credentials.
  */
-type EngineFactory = (limit: number) => BenchmarkRunner | EngineConfigError
+type EngineFactory = (limit: number) => readonly BenchmarkRunner[] | EngineConfigError
 
 /**
  * Adding an EngineId fails to compile until it is listed here, and null keeps an
@@ -36,18 +40,48 @@ type EngineFactory = (limit: number) => BenchmarkRunner | EngineConfigError
 const ENGINE_RUNNERS: Readonly<Record<EngineId, EngineFactory | null>> = {
   firestore: (limit) => {
     const db = getFirestoreClient()
-    return isConfigError(db) ? db : createFirestoreRunner({ db, maxIterations: limit })
+    if (isConfigError(db)) return db
+    // Two runners per engine, both satisfying the same port: the CRUD one and
+    // the query one. The sequential combinator chains them, so a run that asks
+    // for operations AND queries is still one stream of events to the UI.
+    return [
+      createFirestoreRunner({ db, maxIterations: limit }),
+      createQueryRunner(
+        'firestore',
+        bindExecutors(FIRESTORE_QUERIES, (fn) => (i: number) => fn(db, i)),
+      ),
+    ]
   },
   mongodb: (limit) => {
     const handle = getMongoClient()
-    return isMongoConfigError(handle)
-      ? handle
-      : createMongoRunner({ db: handle.db, maxIterations: limit })
+    if (isMongoConfigError(handle)) return handle
+    const db = handle.db
+    return [
+      createMongoRunner({ db, maxIterations: limit }),
+      createQueryRunner(
+        'mongodb',
+        bindExecutors(MONGO_QUERIES, (fn) => (i: number) => fn(db, i)),
+      ),
+    ]
   },
 }
 
+/**
+ * Turns a table of `(client, iteration) => Promise` into the iteration-only
+ * shape the query runner expects, keeping the client out of that runner
+ * entirely. Typed over the QueryId union, so a missing query cannot slip past.
+ */
+function bindExecutors<T>(
+  table: Readonly<Record<QueryId, T>>,
+  bind: (fn: T) => (iteration: number) => Promise<unknown>,
+): Readonly<Record<QueryId, (iteration: number) => Promise<unknown>>> {
+  const bound = {} as Record<QueryId, (iteration: number) => Promise<unknown>>
+  for (const id of Object.keys(table) as QueryId[]) bound[id] = bind(table[id])
+  return bound
+}
+
 const isEngineConfigError = (
-  value: BenchmarkRunner | EngineConfigError,
+  value: readonly BenchmarkRunner[] | EngineConfigError,
 ): value is EngineConfigError => 'missing' in value
 
 const SUPPORTED_ENGINES: readonly EngineId[] = (
@@ -66,6 +100,10 @@ const isEngineList = (value: unknown): value is EngineId[] =>
 const isOperationList = (value: unknown): value is OperationId[] =>
   Array.isArray(value) && value.every(isOperationId)
 
+/** Absent is allowed — a CRUD-only run sends no queries at all. */
+const isQueryList = (value: unknown): value is QueryId[] =>
+  value === undefined || (Array.isArray(value) && value.every(isQueryId))
+
 /** Absent means 'use the default'. Present-but-wrong is a client bug: reject it. */
 const integer = (value: unknown, fallback: number): number | null => {
   if (value === undefined) return fallback
@@ -81,6 +119,7 @@ const parseConfig = (body: unknown): BenchmarkConfig | null => {
   const raw = body as Record<string, unknown>
 
   if (!isEngineList(raw.engines) || !isOperationList(raw.operations)) return null
+  if (!isQueryList(raw.queries)) return null
 
   const iterations = integer(raw.iterations, DEFAULT_CONFIG.iterations)
   const warmupIterations = integer(raw.warmupIterations, DEFAULT_CONFIG.warmupIterations)
@@ -99,6 +138,7 @@ const parseConfig = (body: unknown): BenchmarkConfig | null => {
   const candidate: BenchmarkConfig = {
     engines: raw.engines,
     operations: raw.operations,
+    queries: raw.queries ?? [],
     iterations,
     warmupIterations,
     documentSizeBytes,
@@ -148,7 +188,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (isEngineConfigError(built)) {
       return json({ error: 'engine-not-configured', engine, missing: built.missing }, 503)
     }
-    runners.push(built)
+    // The CRUD runner comes first, the query runner second. Each one skips its
+    // own phases when the config names none, so an operations-only or a
+    // queries-only run costs nothing extra.
+    runners.push(...built)
   }
 
   const config = parsed

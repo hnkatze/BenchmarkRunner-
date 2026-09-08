@@ -1,23 +1,23 @@
 import type { BenchmarkReport, OperationResult } from './benchmark-report'
 import type { EngineId } from './engine'
-import type { OperationId } from './operation'
+import type { PhaseId } from './phase'
 
 export type RunEvent =
   | { readonly type: 'run-started'; readonly at: number; readonly totalSamples: number }
   | {
       readonly type: 'phase-started'
       readonly engine: EngineId
-      readonly operation: OperationId
+      readonly operation: PhaseId
       readonly iterations: number
     }
   | {
       readonly type: 'sample'
       readonly engine: EngineId
-      readonly operation: OperationId
+      readonly operation: PhaseId
       readonly durationMs: number
       readonly index: number
     }
-  | { readonly type: 'phase-failed'; readonly engine: EngineId; readonly operation: OperationId }
+  | { readonly type: 'phase-failed'; readonly engine: EngineId; readonly operation: PhaseId }
   | { readonly type: 'phase-completed'; readonly result: OperationResult }
   | { readonly type: 'run-completed'; readonly report: BenchmarkReport }
   | { readonly type: 'run-failed'; readonly message: string }
@@ -51,7 +51,7 @@ export type RunState =
       readonly completedSamples: number
       readonly totalSamples: number
       readonly results: readonly OperationResult[]
-      readonly current: { readonly engine: EngineId; readonly operation: OperationId } | null
+      readonly current: { readonly engine: EngineId; readonly operation: PhaseId } | null
     }
   | { readonly status: 'completed'; readonly report: BenchmarkReport }
   | { readonly status: 'failed'; readonly message: string }

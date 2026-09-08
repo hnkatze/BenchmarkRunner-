@@ -1,23 +1,31 @@
 ---
 import { CONFIG_LIMITS, DEFAULT_CONFIG, ENGINE_IDS, OPERATION_IDS } from '../domain'
+import { QUERY_SPECS, queriesOfKind } from '../../dataset/domain/queries.ts'
 import { ghostButton, solidButton } from '../../ui/button-recipes'
 import Checkbox from '../../ui/Checkbox.astro'
 import { icon } from '../../ui/icons'
-import { ENGINE_DISPLAY, OPERATION_DISPLAY } from './labels'
+import { GLOSSARY, type GlossaryTermId } from './copy'
+import { infoTip } from '../../ui/info-tip'
+import { ENGINE_DISPLAY, PHASE_DISPLAY, firestoreStrategyLabel } from './labels'
 
 /* Caldera cards: Ash White, 40px radius, 40px padding. The padding applies to
    the container — never to a table row, which would make the data unreadable. */
 const panel = 'rounded-card bg-surface p-10'
-const legendText = 'text-xs font-semibold uppercase tracking-widest text-muted'
+const legendText = 'text-caption-uppercase font-semibold text-muted'
 
 /* Pill inputs, 100px radius. Focus inverts the border to full ink rather than
    adding a glow: the system is flat and has no shadows. */
 const numberField =
-  'w-full rounded-input border border-subtle bg-canvas px-6 py-3 font-mono text-body-sm text-primary tnum outline-none focus-visible:border-strong focus-visible:ring-2 focus-visible:ring-abyssal-ink/20'
+  'w-full rounded-input border border-hairline bg-canvas px-6 py-3 font-mono text-body-sm text-primary tnum outline-none focus-visible:border-hairline-strong focus-visible:ring-2 focus-visible:ring-primary/20'
+
+/** Scoped ids: the same term also appears in the results table. */
+const tip = (term: GlossaryTermId): string =>
+  infoTip({ id: `tip-form-${term}`, term: GLOSSARY[term].term, definition: GLOSSARY[term].definition })
 
 const numericFields = [
   {
     name: 'iterations',
+    term: 'iterations' satisfies GlossaryTermId,
     label: 'Iteraciones',
     hint: 'Muestras por motor y operación',
     value: DEFAULT_CONFIG.iterations,
@@ -25,6 +33,7 @@ const numericFields = [
   },
   {
     name: 'warmupIterations',
+    term: 'warmup' satisfies GlossaryTermId,
     label: 'Calentamiento',
     hint: 'Descartadas antes de medir',
     value: DEFAULT_CONFIG.warmupIterations,
@@ -32,6 +41,7 @@ const numericFields = [
   },
   {
     name: 'documentSizeBytes',
+    term: 'documentSize' satisfies GlossaryTermId,
     label: 'Tamaño del documento',
     hint: 'Payload en bytes',
     value: DEFAULT_CONFIG.documentSizeBytes,
@@ -39,6 +49,7 @@ const numericFields = [
   },
   {
     name: 'concurrency',
+    term: 'concurrency' satisfies GlossaryTermId,
     label: 'Concurrencia',
     hint: 'Workers en paralelo',
     value: DEFAULT_CONFIG.concurrency,
@@ -60,7 +71,7 @@ const numericFields = [
       <legend class={`${legendText} mb-2.5`}>Motores</legend>
       {
         ENGINE_IDS.map((engine) => (
-          <label class="flex cursor-pointer items-center gap-4 rounded-input border border-subtle bg-canvas px-5 py-4 transition-colors has-checked:border-strong">
+          <label class="flex cursor-pointer items-center gap-4 rounded-input border border-hairline bg-canvas px-5 py-4 transition-colors has-checked:border-hairline-strong">
             <Checkbox name="engine" value={engine} checked />
             <span class="grid gap-0.5">
               <span class="flex items-center gap-2 text-body-sm font-medium text-primary">
@@ -91,11 +102,53 @@ const numericFields = [
             />
             <span
               class="inline-flex shrink-0 text-secondary"
-              set:html={icon(OPERATION_DISPLAY[operation].icon, 'size-5')}
+              set:html={icon(PHASE_DISPLAY[operation].icon, 'size-5')}
             />
             <span class="grid gap-0.5">
-              <span class="text-body-sm text-primary">{OPERATION_DISPLAY[operation].label}</span>
-              <span class="text-xs text-muted">{OPERATION_DISPLAY[operation].description}</span>
+              <span class="text-body-sm text-primary">{PHASE_DISPLAY[operation].label}</span>
+              <span class="text-xs text-muted">{PHASE_DISPLAY[operation].description}</span>
+            </span>
+          </label>
+        ))
+      }
+    </fieldset>
+
+    <fieldset class="grid gap-1">
+      <legend class={`${legendText} mb-2.5`}>Consultas simples</legend>
+      {
+        queriesOfKind('simple').map((query) => (
+          <label class="flex cursor-pointer items-start gap-4 rounded-input px-4 py-2.5 transition-colors hover:bg-raised">
+            <Checkbox name="query" value={query} />
+            <span
+              class="mt-0.5 inline-flex shrink-0 text-secondary"
+              set:html={icon(PHASE_DISPLAY[query].icon, 'size-5')}
+            />
+            <span class="grid gap-0.5">
+              <span class="text-body-sm text-primary">{PHASE_DISPLAY[query].label}</span>
+              <span class="text-caption text-muted">{QUERY_SPECS[query].question}</span>
+            </span>
+          </label>
+        ))
+      }
+    </fieldset>
+
+    <fieldset class="grid gap-1">
+      <legend class={`${legendText} mb-2.5`}>Consultas complejas</legend>
+      {
+        queriesOfKind('complex').map((query) => (
+          <label class="flex cursor-pointer items-start gap-4 rounded-input px-4 py-2.5 transition-colors hover:bg-raised">
+            <Checkbox name="query" value={query} />
+            <span
+              class="mt-0.5 inline-flex shrink-0 text-secondary"
+              set:html={icon(PHASE_DISPLAY[query].icon, 'size-5')}
+            />
+            <span class="grid gap-0.5">
+              <span class="text-body-sm text-primary">{PHASE_DISPLAY[query].label}</span>
+              <span class="text-caption text-muted">{QUERY_SPECS[query].question}</span>
+              {/* Stated next to every complex query on purpose: five of the ten
+                  only run because the missing engine was written by hand, and a
+                  latency number without that caveat is a lie of omission. */}
+              <span class="mt-1 text-caption text-firestore">{firestoreStrategyLabel(query)}</span>
             </span>
           </label>
         ))
@@ -107,9 +160,12 @@ const numericFields = [
       {
         numericFields.map((field) => (
           <div class="grid gap-2">
-            <label for={`field-${field.name}`} class="px-2 text-body-sm font-medium text-secondary">
-              {field.label}
-            </label>
+            <div class="flex items-center gap-1.5 px-2">
+              <label for={`field-${field.name}`} class="text-body-sm font-medium text-secondary">
+                {field.label}
+              </label>
+              <Fragment set:html={tip(field.term)} />
+            </div>
             <input
               id={`field-${field.name}`}
               name={field.name}
@@ -133,12 +189,12 @@ const numericFields = [
     <ul
       data-ref="errors"
       hidden
-      class="grid gap-1 rounded-card bg-abyssal-ink p-6 text-body-sm text-pure-white"
+      class="grid gap-1 rounded-card bg-primary p-6 text-body-sm text-canvas"
     >
     </ul>
    </div>
 
-    <div class="flex flex-wrap gap-2.5 border-t border-subtle bg-surface px-10 py-6">
+    <div class="flex flex-wrap gap-2.5 border-t border-hairline bg-surface px-10 py-6">
       <button type="submit" data-ref="run" class={`flex-1 ${solidButton()}`}>
         <span class="flex items-center justify-center gap-2">
           <span data-ref="run-icon" class="inline-flex" set:html={icon('play', 'size-4')} />
@@ -165,17 +221,17 @@ const numericFields = [
         aria-valuemin="0"
         aria-valuemax="100"
         aria-valuenow="0"
-        class="mt-5 h-3 overflow-hidden rounded-full bg-canvas"
+        class="mt-5 h-2 overflow-hidden rounded-pill bg-inset"
       >
         <div
           data-ref="progress-bar"
           style="width: 0%"
-          class="h-full rounded-full bg-abyssal-ink transition-[width] duration-150 ease-out"
+          class="h-full rounded-pill bg-primary transition-[width] duration-150 ease-out"
         >
         </div>
       </div>
 
-      <p data-ref="status" role="status" aria-live="polite" class="mt-5 text-body text-secondary">
+      <p data-ref="status" role="status" aria-live="polite" class="mt-5 text-body-md text-secondary">
         En espera. Configura una ejecución e iníciala.
       </p>
     </section>
@@ -184,6 +240,7 @@ const numericFields = [
       <h2 id="chart-heading" class={`${legendText} flex items-center gap-2`}>
         <Fragment set:html={icon('chart-bar', 'size-4')} />
         Comparación de latencia p95
+        <Fragment set:html={tip('p95')} />
       </h2>
       <div data-ref="chart" class="pt-6"></div>
     </section>
@@ -199,5 +256,10 @@ const numericFields = [
 </benchmark-console>
 
 <script>
+  import { initInfoTips } from '../../ui/info-tip'
   import './benchmark-console'
+
+  // Delegated once for the whole document: the results table rebuilds its
+  // headers on every event, so its tooltips are wired after this runs.
+  initInfoTips()
 </script>
