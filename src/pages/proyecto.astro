@@ -1,0 +1,384 @@
+---
+import Layout from '../layouts/Layout.astro'
+import Figure from '../ui/diagrams/Figure.astro'
+import PhaseDiagram from '../ui/diagrams/PhaseDiagram.astro'
+import PortDiagram from '../ui/diagrams/PortDiagram.astro'
+import RunFlowDiagram from '../ui/diagrams/RunFlowDiagram.astro'
+import { GLOSSARY } from '../benchmark/ui/copy'
+import { icon } from '../ui/icons'
+import { ghostButton } from '../ui/button-recipes'
+
+/* Measured run: 30 iterations, 1024 B, concurrency 1, from Honduras, zero
+   errors across the ten phases. p95 in milliseconds. Kept as data rather than
+   markup so the two rows cannot drift out of column order. */
+const MEASURED_OPERATIONS = [
+  'insertOne',
+  'findById',
+  'queryFiltered',
+  'updateOne',
+  'deleteOne',
+] as const
+
+const MEASURED = [
+  {
+    engine: 'Firestore',
+    detail: 'nam5 · multirregión',
+    color: '--color-firestore',
+    p95: [127.8, 99.7, 154.9, 120.2, 113.5],
+  },
+  {
+    engine: 'MongoDB',
+    detail: 'Atlas M0 · región única',
+    color: '--color-mongodb',
+    p95: [54.3, 52.1, 52.7, 55.8, 56.1],
+  },
+] as const
+
+const DECISIONS = [
+  {
+    title: 'El ganador se decide por p95, no por la media',
+    body: 'La cola es lo que el usuario siente. Una media buena con una cola mala se percibe como una aplicación lenta, y al revés no pasa. Un empate exacto o un motor único no dan ganador.',
+  },
+  {
+    title: 'El gráfico usa escala logarítmica',
+    body: 'Firestore ronda los 200 ms y MongoDB los 2 ms de trabajo real. En escala lineal el segundo sería una raya invisible pegada al eje.',
+  },
+  {
+    title: 'El rendimiento sale del reloj de la fase, no de la media',
+    body: 'Invertir la media da un número que se rompe al subir la concurrencia: medido, pasar de 1 a 6 workers bajaba el valor reportado de 6.47 a 3.67 op/s mientras el rendimiento real subía de 5.65 a 19.9. Latencia y rendimiento son preguntas distintas; nunca derivar una de la otra.',
+  },
+  {
+    title: 'deleteOne siembra iteraciones más calentamiento',
+    body: 'Con solo las iteraciones, el calentamiento consume los primeros documentos y la medición vuelve a borrarlos. Firestore no falla al borrar algo inexistente, así que el contador de errores queda en cero y los números salen limpios y falsos.',
+  },
+  {
+    title: 'Cada operación tiene su colección, con nombre estable',
+    body: 'Un índice compuesto en Firestore se define por colección: un nombre con marca de tiempo obligaría a crearlo de nuevo en cada corrida. La colección se vacía al entrar y al salir de la fase — al entrar también, porque una corrida cortada a la mitad deja documentos y la siguiente mediría contra basura.',
+  },
+  {
+    title: 'Los índices se igualan de los dos lados',
+    body: 'Firestore indexa cada campo por su cuenta; MongoDB solo el _id. Por eso el adaptador de MongoDB crea el índice compuesto al sembrar: sin él, la consulta filtrada haría un escaneo completo y la comparación mediría un índice faltante, no un motor.',
+  },
+] as const
+
+const LIMITS = [
+  'Una corrida por motor a la vez. Las colecciones tienen nombre estable, así que dos ejecuciones simultáneas se pisarían. Es una herramienta de un operador a la vez.',
+  'El M0 de Atlas comparte CPU. Su cola es más ruidosa: con diez iteraciones se vio un p95 de 835 ms sobre un p50 de 54 ms. Sacar conclusiones de la cola exige muestras largas.',
+  'Firestore vive en nam5, que es multirregión. Cada escritura replica entre regiones de EE. UU. antes de confirmarse, así que no es comparable contra un cluster de región única sin decirlo en voz alta.',
+  'Desplegado, la función mide desde iad1 y no desde Honduras. Los números de esta página cambian, y esa es justamente la idea.',
+] as const
+
+/* An editorial split: the section title parks in a rail on the left and the
+   evidence gets the whole remaining width. */
+const shell = 'mx-auto w-full max-w-editorial px-5 sm:px-6 lg:px-8'
+const split = 'grid gap-8 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-16'
+const rail = 'lg:sticky lg:top-10 lg:self-start'
+
+/* Width is for figures and cards, never for running text: past roughly 75
+   characters the eye loses the start of the next line. */
+const measure = 'max-w-[70ch]'
+
+const kicker = 'text-caption-uppercase font-semibold text-muted'
+const railHeading = 'mt-4 text-display-md text-primary'
+const lead = 'text-body-md text-secondary'
+const card = 'rounded-card bg-surface p-8 sm:p-10'
+---
+
+<Layout
+  title="Cómo está hecho — Firestore vs MongoDB"
+  description="Qué mide este benchmark, cómo lo mide y por qué los números no dicen lo que parecen decir."
+>
+  <a
+    href="#main"
+    class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-button focus:bg-primary focus:px-6 focus:py-3 focus:text-body-sm focus:font-medium focus:text-canvas"
+  >
+    Saltar al contenido
+  </a>
+
+  <div class="min-h-dvh bg-canvas pb-28">
+    <header class={`${shell} flex flex-wrap items-center justify-between gap-6 pt-10`}>
+      <p class={kicker}>Firestore vs MongoDB</p>
+      <a href="/" class={`inline-flex items-center gap-2 ${ghostButton('sm')}`}>
+        <Fragment set:html={icon('play', 'size-4')} />
+        Ir a la consola
+      </a>
+    </header>
+
+    <main id="main">
+      <section class={`${shell} pt-12`}>
+        <div class="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-end lg:gap-16">
+          <h1 class="text-display-lg text-primary lg:text-display-mega">
+            Cómo está hecho <span class="text-firestore">y qué mide de verdad</span>
+          </h1>
+          <div class="grid gap-5">
+            <p class={lead}>
+              Esta herramienta ejecuta operaciones reales contra Firestore y MongoDB desde un
+              servidor, mide cuánto tarda cada una y transmite las muestras al navegador mientras la
+              corrida sigue. No simula nada.
+            </p>
+            <p class={lead}>
+              La parte interesante no es el resultado. Es cuántas maneras hay de medir mal sin
+              enterarse, y qué se hizo en cada caso para no caer.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* The thesis. Everything below is evidence for this one claim. */}
+      <section class={`${shell} pt-16`}>
+        <div class="grid gap-8 rounded-card bg-primary p-10 text-canvas lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-16 lg:p-14">
+          <p class="flex items-start gap-3">
+            <span class="mt-1 inline-flex shrink-0 text-firestore" set:html={icon('circle-alert', 'size-6')} />
+            <span class="text-display-md">
+              Un benchmark honesto empieza diciendo qué no mide
+            </span>
+          </p>
+          <p class={`${measure} text-body-md text-canvas/85`}>
+            Cada muestra incluye el viaje de red hasta la base. Desde Honduras ese viaje ronda los
+            50 ms, así que la operación de MongoDB cuesta entre 2 y 6 ms y todo lo demás es
+            distancia. Un número sin sus condiciones no significa nada.
+          </p>
+        </div>
+      </section>
+
+      <section class={`${shell} pt-24`}>
+        <div class={split}>
+          <div class={rail}>
+            <p class={kicker}>01 · Arquitectura</p>
+            <h2 class={railHeading}>Un solo tipo sostiene todo</h2>
+          </div>
+          <div class="grid gap-8">
+            <div class={`${measure} grid gap-5`}>
+              <p class={lead}>
+                El dominio declara un puerto y nada más. La isla de interfaz conoce ese tipo y
+                ninguna otra cosa: no sabe que existe Firestore, ni MongoDB, ni HTTP. Pasar del
+                adaptador simulado al real de Firestore fue cambiar una línea en el composition
+                root.
+              </p>
+              <p class={lead}>
+                Es la prueba que vale la pena mostrar: si agregar un motor obligara a tocar la
+                interfaz, el diseño estaría roto.
+              </p>
+            </div>
+            <Figure>
+              <PortDiagram />
+            </Figure>
+            <p class={`${measure} text-body-sm text-muted`}>
+              El runner secuencial también cumple ese puerto. Por eso la interfaz no distingue una
+              corrida de un motor de una de varios: para ella siempre es un único ejecutor.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class={`${shell} pt-24`}>
+        <div class={split}>
+          <div class={rail}>
+            <p class={kicker}>02 · Recorrido</p>
+            <h2 class={railHeading}>Qué pasa al apretar ejecutar</h2>
+          </div>
+          <div class="grid gap-8">
+            <p class={`${measure} ${lead}`}>
+              La entrada de red se valida elemento por elemento antes de tocar nada. Después los
+              motores corren uno detrás del otro, y cada muestra vuelve al navegador apenas se mide.
+            </p>
+            <Figure>
+              <RunFlowDiagram />
+            </Figure>
+          </div>
+        </div>
+      </section>
+
+      <section class={`${shell} pt-24`}>
+        <div class={split}>
+          <div class={rail}>
+            <p class={kicker}>03 · Método</p>
+            <h2 class={railHeading}>Qué le pasa a cada muestra</h2>
+          </div>
+          <div class="grid gap-8">
+            <p class={`${measure} ${lead}`}>
+              El calentamiento existe porque abrir la conexión y llenar cachés cuesta, y ese costo
+              se paga una sola vez. Si entrara en la medición, el primer valor arrastraría la media
+              y ensuciaría la cola.
+            </p>
+            <Figure>
+              <PhaseDiagram />
+            </Figure>
+          </div>
+        </div>
+      </section>
+
+      <section class={`${shell} pt-24`}>
+        <div class={split}>
+          <div class={rail}>
+            <p class={kicker}>04 · Decisiones</p>
+            <h2 class={railHeading}>Seis maneras de medir mal</h2>
+            <p class="mt-6 text-body-sm text-muted">
+              Cada una se recorrió por el camino equivocado primero. Están acá porque el error era
+              silencioso: los números salían, se veían bien, y estaban mal.
+            </p>
+          </div>
+          <ol class="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
+            {
+              DECISIONS.map((decision, index) => (
+                <li class={`${card} grid content-start gap-3`}>
+                  <p class="font-mono text-xs text-muted">{String(index + 1).padStart(2, '0')}</p>
+                  <h3 class="text-body-md font-semibold text-primary">{decision.title}</h3>
+                  <p class="text-body-sm leading-relaxed text-secondary">{decision.body}</p>
+                </li>
+              ))
+            }
+          </ol>
+        </div>
+      </section>
+
+      <section class={`${shell} pt-24`}>
+        <div class={split}>
+          <div class={rail}>
+            <p class={kicker}>05 · Resultados</p>
+            <h2 class={railHeading}>Lo medido, y cómo leerlo</h2>
+            <p class="mt-6 text-body-sm text-muted">
+              30 iteraciones, documentos de 1024 B, concurrencia 1, ejecutado desde Honduras. Cero
+              errores en las diez fases. p95 en milisegundos, más corto es mejor.
+            </p>
+          </div>
+
+          <div class="grid gap-8">
+            <div class="overflow-x-auto rounded-card bg-surface p-6 sm:p-10">
+              <table class="w-full min-w-[44rem] border-collapse">
+                <caption class="sr-only">
+                  Latencia p95 por motor y operación, en milisegundos
+                </caption>
+                <thead>
+                  <tr>
+                    <th
+                      scope="col"
+                      class="px-3 pb-4 text-left text-caption-uppercase font-medium text-muted"
+                    >
+                      Motor
+                    </th>
+                    {
+                      MEASURED_OPERATIONS.map((operation) => (
+                        <th
+                          scope="col"
+                          class="px-3 pb-4 text-right font-mono text-xs font-medium tracking-wide text-muted"
+                        >
+                          {operation}
+                        </th>
+                      ))
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  {
+                    MEASURED.map((row) => (
+                      <tr class="border-t border-hairline">
+                        <td class="px-3 py-5 text-left">
+                          <span class="flex items-center gap-2 text-body-md font-medium text-primary">
+                            <span
+                              class="inline-block size-3 shrink-0 rounded-full"
+                              style={`background: var(${row.color})`}
+                            />
+                            {row.engine}
+                          </span>
+                          <span class="mt-1 block text-xs text-muted">{row.detail}</span>
+                        </td>
+                        {
+                          row.p95.map((value) => (
+                            <td class="px-3 py-5 text-right font-mono text-body-md tnum text-primary">
+                              {value.toFixed(1)}
+                            </td>
+                          ))
+                        }
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <div class="grid gap-8 rounded-card bg-primary p-10 text-canvas lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:items-start lg:gap-16 lg:p-14">
+              <h3 class="text-display-md">
+                Esto no dice que MongoDB sea 2 o 3 veces más rápido
+              </h3>
+              <div class="grid gap-5">
+                <p class="text-body-md text-canvas/85">
+                  La prueba está en la propia tabla. Firestore hace consenso entre regiones antes de
+                  confirmar una escritura, así que si el motor mandara, la brecha en escrituras
+                  tendría que ser mucho mayor que en lecturas.
+                </p>
+                <p class="text-body-md text-canvas/85">
+                  Y no lo es: va de 1.9 veces en <span class="font-mono">findById</span> a 2.4 veces
+                  en <span class="font-mono">insertOne</span>. Un factor parejo en todas las
+                  operaciones no puede ser el motor. Es la red.
+                </p>
+                <p class="mt-2 text-body-sm text-canvas/60">
+                  Desplegado en Vercel la función mide desde iad1, mucho más cerca de ambas bases, y
+                  estos números cambian. Por eso la región está fijada en la configuración: si el
+                  proveedor ubicara la función lejos, el benchmark dejaría de medir la base para
+                  medir la topología.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class={`${shell} pt-24`}>
+        <div class={split}>
+          <div class={rail}>
+            <p class={kicker}>06 · Glosario</p>
+            <h2 class={railHeading}>Cada término, una vez</h2>
+            <p class="mt-6 text-body-sm text-muted">
+              Las mismas definiciones que aparecen en los tooltips de la consola. Una sola redacción
+              para las dos superficies: una métrica explicada dos veces termina significando dos
+              cosas.
+            </p>
+          </div>
+          <dl class="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
+            {
+              Object.entries(GLOSSARY).map(([id, entry]) => (
+                <div class={`${card} grid content-start gap-3`}>
+                  <dt>
+                    <span class="block text-body-md font-semibold text-primary">{entry.term}</span>
+                    <span class="mt-1 block font-mono text-xs text-muted">{id}</span>
+                  </dt>
+                  <dd class="text-body-sm leading-relaxed text-secondary">{entry.definition}</dd>
+                </div>
+              ))
+            }
+          </dl>
+        </div>
+      </section>
+
+      <section class={`${shell} pt-24`}>
+        <div class={split}>
+          <div class={rail}>
+            <p class={kicker}>07 · Límites</p>
+            <h2 class={railHeading}>Lo que no puede afirmar</h2>
+          </div>
+          <ul class="grid gap-5 sm:grid-cols-2">
+            {
+              LIMITS.map((limit) => (
+                <li class={`${card} flex items-start gap-4`}>
+                  <span
+                    class="mt-0.5 inline-flex shrink-0 text-muted"
+                    set:html={icon('circle-alert', 'size-5')}
+                  />
+                  <span class="text-body-sm leading-relaxed text-secondary">{limit}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </section>
+
+      <section class={`${shell} pt-20`}>
+        <a href="/" class={`inline-flex items-center gap-2 ${ghostButton()}`}>
+          <Fragment set:html={icon('play', 'size-4')} />
+          Ejecutar una corrida
+        </a>
+      </section>
+    </main>
+  </div>
+</Layout>

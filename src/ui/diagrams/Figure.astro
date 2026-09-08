@@ -1,0 +1,23 @@
+---
+/**
+ * Card for a diagram.
+ *
+ * A diagram never shrinks below the width where its labels stop being
+ * readable: squeezing a 900-unit viewBox into a 375px phone renders 12px text
+ * at under 4px. Below that floor it scrolls sideways inside the card, the same
+ * way the results table does — what must never scroll horizontally is the page.
+ *
+ * `min-w-0` is what makes that true. Grid and flex items default to
+ * `min-width: auto`, which refuses to shrink below the content: without it the
+ * floor below pushes its whole grid track wide and the PAGE scrolls instead of
+ * the card.
+ */
+---
+
+<div class="min-w-0 rounded-card bg-surface p-6 sm:p-12">
+  <div class="overflow-x-auto">
+    <div class="min-w-[52rem]">
+      <slot />
+    </div>
+  </div>
+</div>

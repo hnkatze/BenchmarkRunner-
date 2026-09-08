@@ -1,0 +1,105 @@
+---
+/**
+ * The path of one run. Two things this drawing has to get right or it teaches
+ * the wrong lesson:
+ *
+ * - The engines are drawn IN SEQUENCE, never as a fork. Running them at once
+ *   would make them fight for the same serverless CPU and the run would measure
+ *   contention instead of engines.
+ * - The samples travel back one by one over SSE while the run is still going,
+ *   which is why the arrow home leaves from the middle and not from the end.
+ */
+const step = 'fill-canvas stroke-hairline-strong'
+const title = 'font-sans text-[13px] font-semibold fill-primary'
+const note = 'font-sans text-[12px] fill-muted'
+const lane = 'font-sans text-[12px] font-semibold uppercase fill-muted tracking-[0.12em]'
+---
+
+<svg
+  viewBox="0 0 900 430"
+  class="h-auto w-full"
+  role="img"
+  aria-labelledby="flow-title flow-desc"
+>
+  <title id="flow-title">Recorrido de una ejecución</title>
+  <desc id="flow-desc">
+    El formulario envía la configuración al endpoint, que la valida y la pasa al runner
+    secuencial. Firestore corre sus cinco fases y recién entonces corre MongoDB. Cada muestra
+    vuelve al navegador por SSE mientras la ejecución sigue.
+  </desc>
+
+  <text x="0" y="20" class={lane}>Navegador</text>
+  <text x="330" y="20" class={lane}>Servidor · función en iad1</text>
+
+  <line x1="300" y1="34" x2="300" y2="410" class="stroke-hairline-strong" stroke-width="2" stroke-dasharray="4 6" />
+
+  <!-- Browser: form -->
+  <rect x="1" y="46" width="240" height="66" rx="12" class={step} stroke-width="2" />
+  <text x="24" y="76" class={title}>Formulario</text>
+  <text x="24" y="98" class={note}>motores, operaciones, carga</text>
+
+  <path d="M241 79 H330" class="stroke-strong" fill="none" stroke-width="2" marker-end="url(#flow-arrow)" />
+  <text x="250" y="70" class="font-mono text-[11px] fill-muted">POST</text>
+
+  <!-- Server: validate -->
+  <rect x="330" y="46" width="290" height="66" rx="12" class={step} stroke-width="2" />
+  <text x="352" y="76" class={title}>/api/benchmark</text>
+  <text x="352" y="98" class="font-mono text-[11px] fill-muted">isEngineId · isOperationId</text>
+
+  <path d="M475 112 V140" class="stroke-strong" fill="none" stroke-width="2" marker-end="url(#flow-arrow)" />
+
+  <!-- Sequential runner -->
+  <rect x="330" y="140" width="290" height="58" rx="12" class="fill-primary" />
+  <text x="352" y="166" class="font-sans text-[13px] font-semibold fill-canvas">createSequentialRunner</text>
+  <text x="352" y="186" class="font-sans text-[12px] fill-canvas/70">cumple el mismo puerto</text>
+
+  <path d="M475 198 V226" class="stroke-strong" fill="none" stroke-width="2" marker-end="url(#flow-arrow)" />
+
+  <!-- Engines, one after the other -->
+  <rect x="330" y="226" width="290" height="58" rx="12" class={step} stroke-width="2" />
+  <circle cx="356" cy="255" r="7" style="fill: var(--color-firestore)" />
+  <text x="374" y="252" class={title}>Firestore</text>
+  <text x="374" y="272" class={note}>5 fases, una por operación</text>
+
+  <path d="M475 284 V312" class="stroke-strong" fill="none" stroke-width="2" marker-end="url(#flow-arrow)" />
+  <text x="488" y="303" class="font-sans text-[12px] fill-muted">y recién entonces</text>
+
+  <rect x="330" y="312" width="290" height="58" rx="12" class={step} stroke-width="2" />
+  <circle cx="356" cy="341" r="7" style="fill: var(--color-mongodb)" />
+  <text x="374" y="338" class={title}>MongoDB</text>
+  <text x="374" y="358" class={note}>5 fases, una por operación</text>
+
+  <!-- Why sequential -->
+  <rect x="648" y="226" width="252" height="144" rx="12" class="fill-inset" />
+  <text x="670" y="256" class="font-sans text-[12px] font-semibold uppercase fill-muted tracking-[0.12em]">
+    Nunca en paralelo
+  </text>
+  <text x="670" y="284" class={note}>Compartirían CPU y ancho de</text>
+  <text x="670" y="304" class={note}>banda de la misma función, y</text>
+  <text x="670" y="324" class={note}>cada uno inflaría la latencia</text>
+  <text x="670" y="344" class={note}>del otro. Se mediría</text>
+  <text x="670" y="364" class={note}>contención, no motores.</text>
+
+  <!-- SSE home while the run is still going: one stroke, server to reducer. -->
+  <path
+    d="M330 255 H121 V322"
+    class="stroke-strong"
+    fill="none"
+    stroke-width="2"
+    stroke-dasharray="6 5"
+    marker-end="url(#flow-arrow)"
+  />
+  <text x="16" y="200" class="font-mono text-[11px] fill-muted">text/event-stream</text>
+  <text x="16" y="222" class={note}>muestra a muestra,</text>
+  <text x="16" y="242" class={note}>sin esperar el final</text>
+
+  <rect x="1" y="330" width="240" height="66" rx="12" class={step} stroke-width="2" />
+  <text x="24" y="360" class={title}>reduceRunState</text>
+  <text x="24" y="382" class={note}>tabla y gráfico se repintan</text>
+
+  <defs>
+    <marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" class="fill-strong" />
+    </marker>
+  </defs>
+</svg>

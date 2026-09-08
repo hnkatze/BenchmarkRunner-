@@ -1,0 +1,75 @@
+---
+/**
+ * The one rule the project is built on: the domain declares a port, the UI
+ * depends only on that type, and every engine implements it. Drawn flat and
+ * in three columns so the direction of the arrows carries the whole idea —
+ * both sides point INWARD, at the domain.
+ *
+ * Colours come from Tailwind utilities rather than `var(--color-…)` strings so
+ * a renamed token disappears visibly instead of falling back to black.
+ */
+const box = 'fill-canvas stroke-hairline-strong'
+const label = 'font-sans text-[13px] fill-secondary'
+const heading = 'font-sans text-[12px] font-semibold uppercase fill-muted tracking-[0.12em]'
+const code = 'font-mono text-[13px] fill-primary'
+---
+
+<svg
+  viewBox="0 0 900 320"
+  class="h-auto w-full"
+  role="img"
+  aria-labelledby="port-title port-desc"
+>
+  <title id="port-title">El puerto BenchmarkRunner</title>
+  <desc id="port-desc">
+    La isla de interfaz depende del tipo BenchmarkRunner declarado en el dominio. Los cinco
+    adaptadores implementan ese mismo tipo. El composition root en pages/index.astro decide
+    cuál se inyecta.
+  </desc>
+
+  <!-- UI -->
+  <rect x="1" y="70" width="215" height="150" rx="12" class={box} stroke-width="2" />
+  <text x="24" y="102" class={heading}>ui/</text>
+  <text x="24" y="132" class={code}>&lt;benchmark-console&gt;</text>
+  <text x="24" y="160" class={label}>Solo conoce el tipo.</text>
+  <text x="24" y="180" class={label}>Nunca importa un</text>
+  <text x="24" y="200" class={label}>adaptador.</text>
+
+  <!-- Domain -->
+  <rect x="310" y="40" width="280" height="210" rx="12" class="fill-primary" />
+  <text x="336" y="76" class="font-sans text-[12px] font-semibold uppercase fill-canvas/60 tracking-[0.12em]">
+    domain/
+  </text>
+  <text x="336" y="110" class="font-mono text-[13px] fill-canvas">type BenchmarkRunner = {'{'}</text>
+  <text x="352" y="134" class="font-mono text-[13px] fill-canvas">readonly run: (</text>
+  <text x="368" y="158" class="font-mono text-[13px] fill-canvas">config, signal</text>
+  <text x="352" y="182" class="font-mono text-[13px] fill-canvas">) =&gt; AsyncIterable</text>
+  <text x="352" y="206" class="font-mono text-[13px] fill-canvas">&lt;RunEvent&gt;</text>
+  <text x="336" y="230" class="font-mono text-[13px] fill-canvas">{'}'}</text>
+
+  <!-- Adapters -->
+  <rect x="684" y="70" width="215" height="150" rx="12" class={box} stroke-width="2" />
+  <text x="708" y="102" class={heading}>adapters/</text>
+  <text x="708" y="130" class={code}>mock</text>
+  <text x="708" y="152" class={code}>firestore</text>
+  <text x="708" y="174" class={code}>mongo</text>
+  <text x="708" y="196" class={code}>sequential · http</text>
+
+  <!-- Arrows, both pointing inward -->
+  <path d="M216 145 H300" class="stroke-strong" fill="none" stroke-width="2" marker-end="url(#port-arrow)" />
+  <path d="M684 145 H600" class="stroke-strong" fill="none" stroke-width="2" marker-end="url(#port-arrow)" />
+  <text x="228" y="136" class="font-sans text-[12px] fill-muted">depende de</text>
+  <text x="612" y="136" class="font-sans text-[12px] fill-muted">cumplen</text>
+
+  <!-- Composition root -->
+  <path d="M450 250 V286" class="stroke-hairline-strong" fill="none" stroke-width="2" stroke-dasharray="4 5" />
+  <text x="450" y="308" text-anchor="middle" class="font-sans text-[13px] fill-muted">
+    composition root — <tspan class="font-mono">pages/index.astro</tspan> elige cuál se inyecta
+  </text>
+
+  <defs>
+    <marker id="port-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" class="fill-strong" />
+    </marker>
+  </defs>
+</svg>

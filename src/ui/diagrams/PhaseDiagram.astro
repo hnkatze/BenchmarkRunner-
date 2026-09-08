@@ -1,0 +1,108 @@
+---
+/**
+ * What one phase actually does with its samples, which is the part people
+ * assume and get wrong: the warmup runs and is thrown away, the failures never
+ * reach the array, and the percentiles are read off what is left once sorted.
+ *
+ * The dots are laid out by hand rather than generated: the point is the shape
+ * of the tail, and a loop would draw an even row that shows nothing.
+ */
+const note = 'font-sans text-[12px] fill-muted'
+const tag = 'font-sans text-[12px] font-semibold uppercase fill-muted tracking-[0.12em]'
+
+/* Sorted ascending, with the long right tail a real run produces. */
+const SAMPLES = [
+  52, 53, 53, 54, 54, 55, 55, 56, 56, 57, 57, 58, 58, 59, 60, 61, 62, 64, 67, 71, 78, 96, 141,
+] as const
+
+const CHART_X = 250
+const CHART_W = 560
+const STEP = CHART_W / (SAMPLES.length - 1)
+const dotX = (index: number): number => CHART_X + index * STEP
+
+/* Ranks, not values: p95 of 23 samples falls between the 21st and the 22nd. */
+const markerX = (quantile: number): number => dotX((SAMPLES.length - 1) * quantile)
+
+/* p95 and p99 land less than one sample apart, which is exactly the lesson —
+   the tail is crowded. Their labels are staggered instead of spread out, so the
+   drawing stays honest about how close they really are. */
+const MARKERS = [
+  { name: 'p50', quantile: 0.5, tickEnd: 162, labelY: 182 },
+  { name: 'p95', quantile: 0.95, tickEnd: 162, labelY: 182 },
+  { name: 'p99', quantile: 0.99, tickEnd: 196, labelY: 216 },
+] as const
+---
+
+<svg
+  viewBox="0 0 900 340"
+  class="h-auto w-full"
+  role="img"
+  aria-labelledby="phase-title phase-desc"
+>
+  <title id="phase-title">Anatomía de una fase</title>
+  <desc id="phase-desc">
+    Las iteraciones de calentamiento se ejecutan y se descartan. Las operaciones que fallan solo
+    suman al contador de errores y no entran en el arreglo. Las muestras restantes se ordenan y de
+    ahí salen p50, p95 y p99.
+  </desc>
+
+  <!-- Warmup, discarded -->
+  <text x="8" y="40" class={tag}>Calentamiento</text>
+  <text x="8" y="64" class={note}>se ejecuta y se tira</text>
+  {
+    [0, 1, 2].map((index) => (
+      <circle cx={38 + index * 34} cy={110} r="9" class="fill-none stroke-hairline-strong" stroke-width="2" />
+    ))
+  }
+  <text x="8" y="150" class={note}>abrir conexión,</text>
+  <text x="8" y="170" class={note}>llenar cachés</text>
+
+  <line x1="200" y1="24" x2="200" y2="230" class="stroke-hairline-strong" stroke-width="2" stroke-dasharray="4 6" />
+
+  <!-- Measured samples -->
+  <text x={CHART_X} y="40" class={tag}>Medición · ordenada de menor a mayor</text>
+  {
+    SAMPLES.map((value, index) => (
+      <circle cx={dotX(index)} cy={110} r="9" class="fill-primary">
+        <title>{value} ms</title>
+      </circle>
+    ))
+  }
+
+  {
+    MARKERS.map((marker) => (
+      <g>
+        <line
+          x1={markerX(marker.quantile)}
+          y1={128}
+          x2={markerX(marker.quantile)}
+          y2={marker.tickEnd}
+          class="stroke-strong"
+          stroke-width="2"
+        />
+        <text
+          x={markerX(marker.quantile)}
+          y={marker.labelY}
+          text-anchor="middle"
+          class="font-mono text-[12px] font-semibold fill-primary"
+        >
+          {marker.name}
+        </text>
+      </g>
+    ))
+  }
+
+  <text x={CHART_X} y="252" class={note}>
+    Interpolación lineal entre rangos, no la muestra observada más cercana.
+  </text>
+
+  <!-- Errors never enter the array -->
+  <rect x="0" y="278" width="900" height="62" rx="12" class="fill-inset" />
+  <text x="24" y="306" class="font-sans text-[13px] font-semibold fill-primary">
+    Las operaciones que fallan no entran acá.
+  </text>
+  <text x="24" y="328" class={note}>
+    Suman al contador de errores y nada más, así que las columnas de latencia describen únicamente
+    lo que sí llegó a completarse.
+  </text>
+</svg>

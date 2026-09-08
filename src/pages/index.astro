@@ -1,12 +1,15 @@
 ---
 import BenchmarkConsole from '../benchmark/ui/BenchmarkConsole.astro'
 import Layout from '../layouts/Layout.astro'
+import { ghostButton } from '../ui/button-recipes'
 import { icon } from '../ui/icons'
 
-/* Caldera's decorative language is large two-tone pixel graphics. This one is
-   a pixelated bar chart — orange against violet, the same pair the real chart
-   uses — so the decoration says what the page is about instead of just filling
-   space. Columns are 20px squares on a 24px step. */
+/* A pixel bar chart in the two engine colours — the same pair the real chart
+   uses, so the mark states what the page does instead of filling space. It
+   survives the move to Cursor because it reads as a data figure, which is the
+   one place the engine colours are allowed to appear. The third tone dropped
+   with Caldera's yellow and is now a hairline grey. Columns are 20px squares
+   on a 24px step, cornered at 2px to match Cursor's tight geometry. */
 const PIXELS = [
   { x: 0, y: 72, tone: 'firestore' },
   { x: 24, y: 72, tone: 'firestore' },
@@ -32,14 +35,14 @@ const PIXELS = [
 const TONE_FILL = {
   firestore: 'var(--color-firestore)',
   mongodb: 'var(--color-mongodb)',
-  glare: 'var(--color-pixel-glare)',
+  glare: 'var(--color-hairline-strong)',
 } as const
 ---
 
 <Layout>
   <a
     href="#main"
-    class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-button focus:bg-abyssal-ink focus:px-6 focus:py-3 focus:text-body-sm focus:font-medium focus:text-pure-white"
+    class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-button focus:bg-primary focus:px-6 focus:py-3 focus:text-body-sm focus:font-medium focus:text-canvas"
   >
     Saltar al contenido
   </a>
@@ -48,12 +51,16 @@ const TONE_FILL = {
     <header class="mx-auto w-full max-w-dashboard px-5 pt-10 pb-8 sm:px-6 lg:px-8">
       <div class="flex flex-wrap items-end justify-between gap-8">
         <div>
-          <h1 class="font-title text-heading-sm uppercase text-primary sm:text-heading">
-            Firestore <span class="text-digital-orange">vs</span> MongoDB
+          <h1 class="text-display-lg text-primary">
+            Firestore <span class="text-firestore">vs</span> MongoDB
           </h1>
-          <p class="mt-4 max-w-prose text-body text-secondary">
+          <p class="mt-4 max-w-prose text-body-md text-secondary">
             Latencia y rendimiento en operaciones habituales sobre documentos.
           </p>
+          <a href="/proyecto" class={`mt-6 inline-flex items-center gap-2 ${ghostButton('sm')}`}>
+            <Fragment set:html={icon('circle-help', 'size-4')} />
+            Cómo está hecho y qué mide
+          </a>
         </div>
 
         <svg
@@ -69,7 +76,7 @@ const TONE_FILL = {
                 y={pixel.y}
                 width="20"
                 height="20"
-                rx="5"
+                rx="2"
                 fill={TONE_FILL[pixel.tone]}
               />
             ))
@@ -81,14 +88,14 @@ const TONE_FILL = {
     <main id="main" class="mx-auto w-full max-w-dashboard px-5 pb-16 sm:px-6 lg:px-8">
       {/* Full-bleed block, but the prose keeps a readable measure: at the dashboard's
           width a single column would run past 200 characters per line. */}
-      <div class="mb-10 grid gap-6 rounded-card bg-pixel-glare p-10 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start lg:gap-16">
-        <p class="flex items-start gap-3 text-abyssal-ink">
-          <span class="mt-1 inline-flex shrink-0" set:html={icon('circle-alert', 'size-6')} />
-          <span class="font-title text-subheading uppercase leading-none">
+      <div class="mb-10 grid gap-6 rounded-card border border-hairline bg-inset p-10 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start lg:gap-16">
+        <p class="flex items-start gap-3 text-primary">
+          <span class="mt-1 inline-flex shrink-0 text-firestore" set:html={icon('circle-alert', 'size-6')} />
+          <span class="text-display-md">
             Firestore en nam5 · multirregión
           </span>
         </p>
-        <p class="max-w-prose text-body text-abyssal-ink">
+        <p class="max-w-prose text-body-md text-primary">
           Las escrituras replican entre regiones de EE. UU. antes de confirmarse, así que su latencia
           de escritura incluye ese consenso. Las mediciones son reales y salen del
           puerto <code class="font-mono text-body-sm">BenchmarkRunner</code> ejecutándose en el servidor.
