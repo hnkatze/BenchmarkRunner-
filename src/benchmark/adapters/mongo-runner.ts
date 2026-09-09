@@ -5,6 +5,15 @@ import type { BenchmarkRunner } from '../domain/benchmark-runner'
 import { summarizeLatencies } from '../domain/latency'
 import type { OperationId } from '../domain/operation'
 import type { RunEvent } from '../domain/run-event'
+import {
+  NEVER_ABORTS,
+  PHASE_FAILURE_LIMIT,
+  SAMPLE_TIMEOUT_MS,
+  SETUP_TIMEOUT_MS,
+  WARMUP_FAILURE_LIMIT,
+  withDeadline,
+} from './deadline'
+import { failureReason } from './failure-reason'
 
 const BATCH_SIZE = 100
 const QUERY_LIMIT = 50
@@ -148,13 +157,19 @@ export const createMongoRunner = (options: MongoRunnerOptions): BenchmarkRunner 
     return Math.min(iterations, BATCH_SIZE)
   }
 
+  const plannedSamples = (config: BenchmarkConfig): number =>
+    config.operations.length * Math.min(config.iterations, maxIterations)
+
   return {
+    // The clamp is applied here too, not just inside run: an announced total
+    // built from the UI's unclamped request could never be reached.
+    plannedSamples,
+
     async *run(config: BenchmarkConfig, signal: AbortSignal): AsyncIterable<RunEvent> {
       const iterations = Math.min(config.iterations, maxIterations)
       const startedAt = Date.now()
-      const totalSamples = config.operations.length * iterations
 
-      yield { type: 'run-started', at: startedAt, totalSamples }
+      yield { type: 'run-started', at: startedAt, totalSamples: plannedSamples(config) }
 
       const results: OperationResult[] = []
 
@@ -170,22 +185,46 @@ export const createMongoRunner = (options: MongoRunnerOptions): BenchmarkRunner 
         try {
           // A run cut short leaves documents behind and the next seed would
           // measure against a polluted collection.
-          await db.collection(collection).deleteMany({})
+          // Bounded: setup is where a quota-exhausted run stalls, and it stalls
+          // BEFORE any sample exists, so nothing would be reported meanwhile.
+          await withDeadline(db.collection(collection).deleteMany({}), SETUP_TIMEOUT_MS, signal)
 
           const poolSize = seedCountFor(operation, iterations, config.warmupIterations)
-          const ids = poolSize > 0 ? await seed(collection, poolSize, config.documentSizeBytes) : []
+          const ids =
+            poolSize > 0
+              ? await withDeadline(
+                  seed(collection, poolSize, config.documentSizeBytes),
+                  SETUP_TIMEOUT_MS,
+                  signal,
+                )
+              : []
 
           // Warmup indexes past the measured range so deleteOne never overlaps.
+          // It doubles as the canary: if the first calls all fail, the phase is
+          // broken and the measured loop would only spend time proving it.
+          let warmupFailures = 0
           for (let i = 0; i < config.warmupIterations && !signal.aborted; i += 1) {
-            await runOnce(operation, collection, ids, iterations + i, config).catch(
-              (error: unknown) => {
-                console.error(`[bench] warmup ${operation}#${i} failed:`, error)
-              },
-            )
+            try {
+              await withDeadline(
+                runOnce(operation, collection, ids, iterations + i, config),
+                SAMPLE_TIMEOUT_MS,
+                signal,
+              )
+              warmupFailures = 0
+            } catch (error: unknown) {
+              warmupFailures += 1
+              console.error(`[bench] warmup ${operation}#${i} failed:`, error)
+              if (warmupFailures >= WARMUP_FAILURE_LIMIT) {
+                throw new Error(
+                  `${warmupFailures} calentamientos seguidos fallaron — ${failureReason(error)}`,
+                )
+              }
+            }
           }
 
           const durations: number[] = []
           let errorCount = 0
+          let lastReason = ''
           const phaseStarted = nowMs()
 
           // Lanes run in parallel; each latency is still measured per operation, so
@@ -199,7 +238,13 @@ export const createMongoRunner = (options: MongoRunnerOptions): BenchmarkRunner 
             )
 
             const settled = await Promise.allSettled(
-              indexes.map((index) => runOnce(operation, collection, ids, index, config)),
+              indexes.map((index) =>
+                withDeadline(
+                  runOnce(operation, collection, ids, index, config),
+                  SAMPLE_TIMEOUT_MS,
+                  signal,
+                ),
+              ),
             )
 
             for (let lane = 0; lane < settled.length; lane += 1) {
@@ -217,8 +262,28 @@ export const createMongoRunner = (options: MongoRunnerOptions): BenchmarkRunner 
                   index,
                 }
               } else {
+                // Announced, not merely counted: a phase failing on every
+                // iteration — a missing composite index, an unseeded
+                // collection — is otherwise indistinguishable from a stall.
                 errorCount += 1
+                lastReason = failureReason(outcome.reason)
+                yield {
+                  type: 'sample-failed',
+                  engine: 'mongodb',
+                  operation,
+                  index,
+                  reason: lastReason,
+                }
               }
+            }
+
+            // Nothing has worked yet and the failures keep coming: the phase is
+            // broken, not slow. Running the remaining iterations would spend
+            // time — and, on Firestore, quota — to learn the same thing.
+            if (durations.length === 0 && errorCount >= PHASE_FAILURE_LIMIT) {
+              throw new Error(
+                `${errorCount} muestras fallaron sin ninguna exitosa — ${lastReason}`,
+              )
             }
           }
 
@@ -231,17 +296,27 @@ export const createMongoRunner = (options: MongoRunnerOptions): BenchmarkRunner 
           }
           results.push(result)
           yield { type: 'phase-completed', result }
-        } catch {
-          yield { type: 'phase-failed', engine: 'mongodb', operation }
+        } catch (error: unknown) {
+          // With a reason: a phase that dies during setup emits no samples at
+          // all, so this event is the only thing the UI ever hears about it.
+          yield {
+            type: 'phase-failed',
+            engine: 'mongodb',
+            operation,
+            reason: failureReason(error),
+          }
         } finally {
           // deleteMany, not drop: dropping would take the index with it, and the
           // collection is reused across runs. Emptying keeps both stable.
-          await db
-            .collection(collection)
-            .deleteMany({})
-            .catch((error: unknown) => {
-              console.error(`[bench] cleanup failed for ${collection}:`, error)
-            })
+          // NEVER_ABORTS on purpose: cancelling the run must not leave the
+          // collection full, or the next run measures against dirty data.
+          await withDeadline(
+            db.collection(collection).deleteMany({}),
+            SETUP_TIMEOUT_MS,
+            NEVER_ABORTS,
+          ).catch((error: unknown) => {
+            console.error(`[bench] cleanup failed for ${collection}:`, error)
+          })
         }
       }
 

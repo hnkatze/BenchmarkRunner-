@@ -7,6 +7,13 @@ import {
   type RunEvent,
 } from '../domain'
 import type { QueryId } from '../../dataset/domain/queries.ts'
+import {
+  PHASE_FAILURE_LIMIT,
+  SAMPLE_TIMEOUT_MS,
+  WARMUP_FAILURE_LIMIT,
+  withDeadline,
+} from './deadline'
+import { failureReason } from './failure-reason'
 
 /**
  * Measures the ten read queries against the seeded dataset.
@@ -30,6 +37,11 @@ export type QueryExecutors = Readonly<Record<QueryId, (iteration: number) => Pro
  * @returns a runner that measures only the queries named in the config
  */
 export const createQueryRunner = (engine: EngineId, executors: QueryExecutors): BenchmarkRunner => ({
+  // Queries are not clamped by BENCH_MAX_ITERATIONS: that ceiling guards the
+  // CRUD phases, which write. A query only reads.
+  plannedSamples: (config: BenchmarkConfig): number =>
+    config.queries.length * config.iterations,
+
   async *run(config: BenchmarkConfig, signal: AbortSignal): AsyncIterable<RunEvent> {
     const results: OperationResult[] = []
     const startedAt = Date.now()
@@ -48,14 +60,28 @@ export const createQueryRunner = (engine: EngineId, executors: QueryExecutors): 
 
       // Warmup runs at negative-facing indices past the measured range so a
       // cached plan or a warm connection is paid for once, outside the numbers.
-      for (let i = 0; i < config.warmupIterations && !signal.aborted; i += 1) {
-        await execute(config.iterations + i).catch((error: unknown) => {
-          console.error(`[bench] warmup ${engine}/${query}#${i} failed:`, error)
-        })
-      }
+      // It doubles as the canary: a query against an unseeded collection or a
+      // composite index that does not exist fails here first.
+      try {
+        let warmupFailures = 0
+        for (let i = 0; i < config.warmupIterations && !signal.aborted; i += 1) {
+          try {
+            await withDeadline(execute(config.iterations + i), SAMPLE_TIMEOUT_MS, signal)
+            warmupFailures = 0
+          } catch (error: unknown) {
+            warmupFailures += 1
+            console.error(`[bench] warmup ${engine}/${query}#${i} failed:`, error)
+            if (warmupFailures >= WARMUP_FAILURE_LIMIT) {
+              throw new Error(
+                `${warmupFailures} calentamientos seguidos fallaron — ${failureReason(error)}`,
+              )
+            }
+          }
+        }
 
       const durations: number[] = []
       let errorCount = 0
+      let lastReason = ''
       const phaseStarted = nowMs()
 
       const lanes = Math.max(1, Math.min(config.concurrency, config.iterations))
@@ -69,7 +95,7 @@ export const createQueryRunner = (engine: EngineId, executors: QueryExecutors): 
         const settled = await Promise.allSettled(
           indexes.map(async (index) => {
             const at = nowMs()
-            await execute(index)
+            await withDeadline(execute(index), SAMPLE_TIMEOUT_MS, signal)
             return nowMs() - at
           }),
         )
@@ -90,9 +116,26 @@ export const createQueryRunner = (engine: EngineId, executors: QueryExecutors): 
             }
           } else {
             // A failed query never reaches `durations`, so the percentiles
-            // describe only what actually completed.
+            // describe only what actually completed. It is still ANNOUNCED, or
+            // a phase failing on every iteration — an unseeded collection, a
+            // missing composite index — would look exactly like a stalled run.
             errorCount += 1
+            lastReason = failureReason(outcome.reason)
+            yield {
+              type: 'sample-failed',
+              engine,
+              operation: query,
+              index,
+              reason: lastReason,
+            }
           }
+        }
+
+        // Nothing has worked yet and the failures keep coming: the phase is
+        // broken, not slow. Running the remaining iterations would spend time —
+        // and, on Firestore, read quota — to learn the same thing.
+        if (durations.length === 0 && errorCount >= PHASE_FAILURE_LIMIT) {
+          throw new Error(`${errorCount} muestras fallaron sin ninguna exitosa — ${lastReason}`)
         }
       }
 
@@ -105,6 +148,11 @@ export const createQueryRunner = (engine: EngineId, executors: QueryExecutors): 
       }
       results.push(result)
       yield { type: 'phase-completed', result }
+      } catch (error: unknown) {
+        // Queries own no collection, so there is nothing to clean up — but a
+        // phase that dies before its first sample still has to say so.
+        yield { type: 'phase-failed', engine, operation: query, reason: failureReason(error) }
+      }
     }
 
     yield {

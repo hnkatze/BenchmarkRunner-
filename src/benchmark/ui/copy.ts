@@ -62,8 +62,31 @@ export const COPY = {
   },
 } as const
 
-export const runningStatus = (where: string, done: number, total: number): string =>
-  `Ejecutando ${where} — ${done} de ${total} muestras.`
+export const runningStatus = (
+  where: string,
+  attempted: number,
+  total: number,
+  failed: number,
+): string =>
+  failed === 0
+    ? `Ejecutando ${where} — ${attempted} de ${total} muestras.`
+    : `Ejecutando ${where} — ${attempted} de ${total} muestras, ${failed} con error.`
+
+/**
+ * Shown while the run is still going. A phase whose every sample fails would
+ * otherwise reach the results table as a row of dashes with no explanation.
+ * The reason comes from the engine, so it stays in its own language.
+ */
+export const sampleFailureNotice = (failed: number, reason: string): string =>
+  `${failed} ${failed === 1 ? 'muestra ha fallado' : 'muestras han fallado'}. Última causa: ${reason}`
+
+/**
+ * A phase abandoned before producing a result. It never reaches the results
+ * table — there are no percentiles to show — so this notice is the only place
+ * the user ever learns it existed.
+ */
+export const phaseFailureNotice = (where: string, reason: string): string =>
+  `Fase abandonada — ${where}: ${reason}`
 
 export const finishedStatus = (seconds: string): string =>
   `Ejecución completada en ${seconds} s.`

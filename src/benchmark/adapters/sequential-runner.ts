@@ -12,14 +12,29 @@ import type { RunEvent } from '../domain/run-event'
  * each would inflate the other's latency — the run would measure contention
  * instead of the engines.
  *
- * @param runners - one per engine, executed in the order given
+ * @param runners - one per engine and phase family, executed in the order given
  * @returns a runner emitting a single run-started and a single merged report
  */
 export const createSequentialRunner = (runners: readonly BenchmarkRunner[]): BenchmarkRunner => ({
+  // Asked of every runner rather than scaling the first one's answer. The list
+  // mixes CRUD runners with query runners, which measure different phases, so
+  // multiplying either count by the number of runners gives a total that no run
+  // ever reaches — and a progress bar that never arrives at 100%.
+  plannedSamples: (config: BenchmarkConfig): number =>
+    runners.reduce((total, runner) => total + runner.plannedSamples(config), 0),
+
   async *run(config: BenchmarkConfig, signal: AbortSignal): AsyncIterable<RunEvent> {
     const startedAt = Date.now()
     const results: OperationResult[] = []
-    let announced = false
+    const totalSamples = runners.reduce(
+      (total, runner) => total + runner.plannedSamples(config),
+      0,
+    )
+
+    // Announced up front, before any runner speaks: the total is already known,
+    // and waiting for the first run-started would leave the bar at zero while
+    // the first phase seeds its documents.
+    yield { type: 'run-started', at: startedAt, totalSamples }
 
     for (const runner of runners) {
       if (signal.aborted) return
@@ -27,17 +42,7 @@ export const createSequentialRunner = (runners: readonly BenchmarkRunner[]): Ben
       for await (const event of runner.run(config, signal)) {
         switch (event.type) {
           case 'run-started':
-            // Every runner gets the same config, so they all compute the same
-            // sample count — including the server-side clamp. Multiplying the
-            // first one is exact, and avoids duplicating the clamp here.
-            if (!announced) {
-              announced = true
-              yield {
-                type: 'run-started',
-                at: startedAt,
-                totalSamples: event.totalSamples * runners.length,
-              }
-            }
+            // Swallowed: the combinator already announced the exact total.
             break
 
           case 'run-completed':
@@ -54,6 +59,7 @@ export const createSequentialRunner = (runners: readonly BenchmarkRunner[]): Ben
 
           case 'phase-started':
           case 'sample':
+          case 'sample-failed':
           case 'phase-failed':
           case 'phase-completed':
             yield event

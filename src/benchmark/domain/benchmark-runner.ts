@@ -7,6 +7,19 @@ import type { RunEvent } from './run-event'
  */
 export type BenchmarkRunner = {
   /**
+   * How many samples this runner will attempt for the given config, knowable
+   * BEFORE it runs. It exists so a combinator can announce an exact total
+   * instead of guessing from the first runner to speak: a run mixing CRUD
+   * operations with dataset queries has runners that measure different phase
+   * counts, and scaling one of them by the number of runners is simply wrong.
+   *
+   * Property syntax for the same reason `run` uses it.
+   * @param config - the configuration about to be run
+   * @returns the sample count, already reflecting any server-side clamp
+   */
+  readonly plannedSamples: (config: BenchmarkConfig) => number
+
+  /**
    * Property syntax, not a method: `strictFunctionTypes` skips method shorthand,
    * so only this form checks an adapter's parameters contravariantly.
    * @param config - a configuration already validated by `validateConfig`

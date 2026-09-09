@@ -17,7 +17,31 @@ export type RunEvent =
       readonly durationMs: number
       readonly index: number
     }
-  | { readonly type: 'phase-failed'; readonly engine: EngineId; readonly operation: PhaseId }
+  | {
+      /**
+       * A sample that threw. It carries no duration — a failed call has no
+       * latency to report — but the run did ATTEMPT it, so progress must count
+       * it. Without this event a phase where every call fails is
+       * indistinguishable from a frozen run: no samples, no error, no movement.
+       */
+      readonly type: 'sample-failed'
+      readonly engine: EngineId
+      readonly operation: PhaseId
+      readonly index: number
+      readonly reason: string
+    }
+  | {
+      /**
+       * The phase never produced a result. Carries the reason for the same
+       * cause as `sample-failed`: a phase that dies during setup — clearing a
+       * collection, seeding it — emits no samples at all, so without this the
+       * UI has literally nothing to show for it.
+       */
+      readonly type: 'phase-failed'
+      readonly engine: EngineId
+      readonly operation: PhaseId
+      readonly reason: string
+    }
   | { readonly type: 'phase-completed'; readonly result: OperationResult }
   | { readonly type: 'run-completed'; readonly report: BenchmarkReport }
   | { readonly type: 'run-failed'; readonly message: string }
@@ -26,6 +50,7 @@ export const RUN_EVENT_TYPES = [
   'run-started',
   'phase-started',
   'sample',
+  'sample-failed',
   'phase-failed',
   'phase-completed',
   'run-completed',
@@ -48,10 +73,39 @@ export type RunState =
   | { readonly status: 'idle' }
   | {
       readonly status: 'running'
+      /** Samples that produced a latency. */
       readonly completedSamples: number
+      /**
+       * Samples that threw. Kept apart from the completed ones because they
+       * belong to different questions: progress is `completed + failed` over
+       * total, while the percentiles may only ever see the completed ones.
+       */
+      readonly failedSamples: number
       readonly totalSamples: number
       readonly results: readonly OperationResult[]
-      readonly current: { readonly engine: EngineId; readonly operation: PhaseId } | null
+      /**
+       * The phase in flight. It carries its own sample bookkeeping because an
+       * abandoned phase has to account for the samples it will now never emit —
+       * otherwise the bar stops short of 100% and looks stuck all over again.
+       */
+      readonly current: {
+        readonly engine: EngineId
+        readonly operation: PhaseId
+        readonly iterations: number
+        readonly samples: number
+      } | null
+      /** Reason of the latest failed sample, so a failing phase says why it fails. */
+      readonly lastFailure: string | null
+      /**
+       * Phases that produced no result at all. Kept apart from `results`
+       * because a failed phase has no percentiles to show, and apart from
+       * `lastFailure` because it survives the phases that follow it.
+       */
+      readonly failedPhases: readonly {
+        readonly engine: EngineId
+        readonly operation: PhaseId
+        readonly reason: string
+      }[]
     }
   | { readonly status: 'completed'; readonly report: BenchmarkReport }
   | { readonly status: 'failed'; readonly message: string }
@@ -65,25 +119,56 @@ export const IDLE_STATE: RunState = { status: 'idle' }
  * @param event - the event just received from a runner
  * @returns the next state; unexpected event/state pairs return `state` unchanged
  */
+/** Advances the in-flight phase's own counter. Null when between phases. */
+const countSample = (
+  current: Extract<RunState, { status: 'running' }>['current'],
+): Extract<RunState, { status: 'running' }>['current'] =>
+  current === null ? null : { ...current, samples: current.samples + 1 }
+
 export const reduceRunState = (state: RunState, event: RunEvent): RunState => {
   switch (event.type) {
     case 'run-started':
       return {
         status: 'running',
         completedSamples: 0,
+        failedSamples: 0,
         totalSamples: event.totalSamples,
         results: [],
         current: null,
+        lastFailure: null,
+        failedPhases: [],
       }
 
     case 'phase-started':
       return state.status === 'running'
-        ? { ...state, current: { engine: event.engine, operation: event.operation } }
+        ? {
+            ...state,
+            current: {
+              engine: event.engine,
+              operation: event.operation,
+              iterations: event.iterations,
+              samples: 0,
+            },
+          }
         : state
 
     case 'sample':
       return state.status === 'running'
-        ? { ...state, completedSamples: state.completedSamples + 1 }
+        ? {
+            ...state,
+            completedSamples: state.completedSamples + 1,
+            current: countSample(state.current),
+          }
+        : state
+
+    case 'sample-failed':
+      return state.status === 'running'
+        ? {
+            ...state,
+            failedSamples: state.failedSamples + 1,
+            lastFailure: event.reason,
+            current: countSample(state.current),
+          }
         : state
 
     case 'phase-completed':
@@ -91,8 +176,23 @@ export const reduceRunState = (state: RunState, event: RunEvent): RunState => {
         ? { ...state, results: [...state.results, event.result], current: null }
         : state
 
-    case 'phase-failed':
-      return state.status === 'running' ? { ...state, current: null } : state
+    case 'phase-failed': {
+      if (state.status !== 'running') return state
+      // The samples this phase will now never emit are counted as failed, so
+      // the total still adds up and the bar still reaches 100%.
+      const skipped =
+        state.current === null ? 0 : Math.max(0, state.current.iterations - state.current.samples)
+      return {
+        ...state,
+        current: null,
+        failedSamples: state.failedSamples + skipped,
+        lastFailure: event.reason,
+        failedPhases: [
+          ...state.failedPhases,
+          { engine: event.engine, operation: event.operation, reason: event.reason },
+        ],
+      }
+    }
 
     case 'run-completed':
       return { status: 'completed', report: event.report }

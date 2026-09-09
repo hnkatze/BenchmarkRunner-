@@ -44,6 +44,14 @@ async function* readFrames(body: ReadableStream<Uint8Array>): AsyncGenerator<str
  * @param endpoint - server route that streams RunEvents as SSE
  */
 export const createHttpBenchmarkRunner = (endpoint = '/api/benchmark'): BenchmarkRunner => ({
+  // The client's own arithmetic, and only a fallback: the run-started that
+  // arrives over the wire carries the server's exact figure, including the
+  // BENCH_MAX_ITERATIONS clamp this side cannot see.
+  plannedSamples: (config: BenchmarkConfig): number =>
+    config.engines.length *
+    (config.operations.length + config.queries.length) *
+    config.iterations,
+
   async *run(config: BenchmarkConfig, signal: AbortSignal): AsyncIterable<RunEvent> {
     const response = await fetch(endpoint, {
       method: 'POST',

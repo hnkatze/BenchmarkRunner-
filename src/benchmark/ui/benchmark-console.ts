@@ -1,8 +1,6 @@
 import {
   DEFAULT_CONFIG,
-  ENGINE_IDS,
   IDLE_STATE,
-  OPERATION_IDS,
   isEngineId,
   isOperationId,
   reduceRunState,
@@ -16,7 +14,15 @@ import {
 } from '../domain'
 import { isQueryId, type QueryId } from '../../dataset/domain/queries.ts'
 import { icon } from '../../ui/icons'
-import { COPY, failedStatus, finishedStatus, runningStatus, violationMessage } from './copy'
+import {
+  COPY,
+  failedStatus,
+  finishedStatus,
+  phaseFailureNotice,
+  runningStatus,
+  sampleFailureNotice,
+  violationMessage,
+} from './copy'
 import { renderChart } from './render-chart'
 import { renderResults } from './render-results'
 
@@ -38,6 +44,7 @@ const readChecked = <TValue extends string>(
 
 export class BenchmarkConsole extends HTMLElement {
   #state: RunState = IDLE_STATE
+  #violations: readonly string[] = []
   #controller: AbortController | null = null
   #runner: BenchmarkRunner | null = null
 
@@ -113,22 +120,19 @@ export class BenchmarkConsole extends HTMLElement {
     this.#runner = runner
   }
 
+  /**
+   * Reads the form exactly as it stands, with no fallback for an empty
+   * selection: `validateConfig` owns that verdict, and silently substituting a
+   * default would run phases nobody ticked.
+   */
   #readConfig(): BenchmarkConfig {
     const form = this.#form
     if (form === null) return DEFAULT_CONFIG
 
-    const engines = readChecked<EngineId>(form, 'engine', isEngineId)
-    const operations = readChecked<OperationId>(form, 'operation', isOperationId)
-    const queries = readChecked<QueryId>(form, 'query', isQueryId)
-
     return {
-      engines: engines.length > 0 ? engines : ENGINE_IDS,
-      // A run needs at least one phase from either family. Falling back to a
-      // single operation only when BOTH are empty keeps a queries-only run
-      // from silently gaining a CRUD phase nobody asked for.
-      operations:
-        operations.length > 0 || queries.length > 0 ? operations : OPERATION_IDS.slice(0, 1),
-      queries,
+      engines: readChecked<EngineId>(form, 'engine', isEngineId),
+      operations: readChecked<OperationId>(form, 'operation', isOperationId),
+      queries: readChecked<QueryId>(form, 'query', isQueryId),
       iterations: readNumber(form, 'iterations', DEFAULT_CONFIG.iterations),
       warmupIterations: readNumber(form, 'warmupIterations', DEFAULT_CONFIG.warmupIterations),
       documentSizeBytes: readNumber(form, 'documentSizeBytes', DEFAULT_CONFIG.documentSizeBytes),
@@ -140,15 +144,9 @@ export class BenchmarkConsole extends HTMLElement {
     event.preventDefault()
     if (this.#state.status === 'running') return
 
-    const form = this.#form
-    if (form === null) return
+    if (this.#form === null) return
 
-    const config: BenchmarkConfig = {
-      ...this.#readConfig(),
-      engines: readChecked<EngineId>(form, 'engine', isEngineId),
-      operations: readChecked<OperationId>(form, 'operation', isOperationId),
-    }
-
+    const config = this.#readConfig()
     const violations = validateConfig(config)
     if (violations.length > 0) {
       this.#showViolations(violations.map(violationMessage))
@@ -191,9 +189,34 @@ export class BenchmarkConsole extends HTMLElement {
   }
 
   #showViolations(messages: readonly string[]): void {
+    this.#violations = messages
+    this.#render()
+  }
+
+  /**
+   * Config violations plus, while a run is going, why its samples are failing.
+   * Both belong in the same place: they are the two reasons a run produces no
+   * numbers, and the user should not have to know which kind they hit.
+   */
+  #notices(): readonly string[] {
+    const state = this.#state
+    if (state.status !== 'running') return this.#violations
+
+    const notices = [...this.#violations]
+    for (const phase of state.failedPhases) {
+      notices.push(phaseFailureNotice(phase.engine + ' · ' + phase.operation, phase.reason))
+    }
+    if (state.failedSamples > 0 && state.lastFailure !== null) {
+      notices.push(sampleFailureNotice(state.failedSamples, state.lastFailure))
+    }
+    return notices
+  }
+
+  #renderNotices(): void {
     const host = this.#errorHost
     if (host === null) return
 
+    const messages = this.#notices()
     host.textContent = ''
     host.hidden = messages.length === 0
     for (const message of messages) {
@@ -220,12 +243,13 @@ export class BenchmarkConsole extends HTMLElement {
       case 'idle':
         return COPY.status.idle
       case 'running': {
-        const { current, completedSamples, totalSamples } = this.#state
+        const { current, completedSamples, failedSamples, totalSamples } = this.#state
         const where =
           current === null
             ? COPY.status.preparing
             : current.engine + ' · ' + current.operation
-        return runningStatus(where, completedSamples, totalSamples)
+        // Attempted, not completed: a phase whose every call fails still moves.
+        return runningStatus(where, completedSamples + failedSamples, totalSamples, failedSamples)
       }
       case 'completed': {
         const elapsed = this.#state.report.finishedAt - this.#state.report.startedAt
@@ -245,9 +269,14 @@ export class BenchmarkConsole extends HTMLElement {
   #render(): void {
     const state = this.#state
     const isRunning = state.status === 'running'
-    const completed = state.status === 'running' ? state.completedSamples : 0
+    // Failed samples count toward progress. They were attempted, they cost the
+    // same wall clock, and leaving them out is what made a run against an
+    // unseeded collection look frozen instead of broken.
+    const attempted =
+      state.status === 'running' ? state.completedSamples + state.failedSamples : 0
     const total = state.status === 'running' ? state.totalSamples : 0
-    const ratio = total > 0 ? completed / total : state.status === 'completed' ? 1 : 0
+    const ratio =
+      total > 0 ? Math.min(1, attempted / total) : state.status === 'completed' ? 1 : 0
 
     if (this.#runButton !== null) this.#runButton.disabled = isRunning
 
@@ -273,6 +302,8 @@ export class BenchmarkConsole extends HTMLElement {
       this.#progressLabel.textContent = Math.round(ratio * 100) + '%'
     }
     if (this.#statusRegion !== null) this.#statusRegion.textContent = this.#statusText()
+
+    this.#renderNotices()
 
     const results = this.#currentResults()
     if (this.#resultsHost !== null) renderResults(this.#resultsHost, results)

@@ -64,13 +64,17 @@ export const createMockBenchmarkRunner = (options: MockRunnerOptions = {}): Benc
   const seed = options.seed ?? 0x5eed
   const pacingMs = options.pacingMs ?? 4
 
+  const plannedSamples = (config: BenchmarkConfig): number =>
+    config.engines.length * config.operations.length * config.iterations
+
   return {
+    plannedSamples,
+
     async *run(config: BenchmarkConfig, signal: AbortSignal): AsyncIterable<RunEvent> {
       const random = createRandom(seed)
       const startedAt = Date.now()
-      const totalSamples = config.engines.length * config.operations.length * config.iterations
 
-      yield { type: 'run-started', at: startedAt, totalSamples }
+      yield { type: 'run-started', at: startedAt, totalSamples: plannedSamples(config) }
 
       const results: OperationResult[] = []
 
@@ -93,12 +97,20 @@ export const createMockBenchmarkRunner = (options: MockRunnerOptions = {}): Benc
 
             const outcome = drawSample(engine, operation, config, random)
             if (outcome.failed) {
+              // A drawn failure has no latency to report, so it must not reach
+              // the chart as a sample — it is announced as one instead.
               errorCount += 1
+              yield {
+                type: 'sample-failed',
+                engine,
+                operation,
+                index,
+                reason: 'simulated failure',
+              }
             } else {
               durations.push(outcome.durationMs)
+              yield { type: 'sample', engine, operation, durationMs: outcome.durationMs, index }
             }
-
-            yield { type: 'sample', engine, operation, durationMs: outcome.durationMs, index }
             if (pacingMs > 0) await sleep(pacingMs)
           }
 
