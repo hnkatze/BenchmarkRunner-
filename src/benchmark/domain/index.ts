@@ -20,3 +20,6 @@ export { IDLE_STATE, RUN_EVENT_TYPES, isRunEventType, reduceRunState } from './r
 export type { RunEvent, RunState } from './run-event'
 
 export type { BenchmarkRunner } from './benchmark-runner'
+
+export { BENCH_INDEXES, allBenchIndexes } from './bench-indexes'
+export type { BenchIndexSpec } from './bench-indexes'
