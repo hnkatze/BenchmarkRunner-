@@ -74,8 +74,24 @@ buscar sus tablas:
 
 - **El ganador se decide por p95, no por la media.** La cola es lo que el usuario siente.
   Un empate exacto o un motor único no dan ganador (`compareByOperation`).
-- **El gráfico usa escala logarítmica.** Firestore ~200 ms contra Mongo ~2 ms: en escala
-  lineal el segundo es una raya invisible.
+- **La escala del gráfico de barras la decide el rango de la corrida, no una constante.**
+  El log existía por el caso "Firestore ~200 ms contra Mongo ~2 ms", donde en lineal el
+  segundo es una raya invisible. **Ese caso nunca se dio**: el piso de red domina y todo
+  lo medido vive entre 44 y 155 ms. Dentro de un solo decenio el log clava todas las
+  barras a pocos puntos porcentuales de la misma longitud — lo contrario de discriminar.
+  `spansDecades(domain)` elige: log si `max/min > 10`, lineal desde cero si no, y el pie
+  del gráfico **dice cuál se usó**. Un pie que anuncia la escala equivocada es peor que
+  no tenerlo.
+- **Tres gráficos, nunca un eje doble.** Latencia p95, muestra a muestra y rendimiento son
+  vistas separadas de la misma corrida. Latencia y rendimiento se mueven en direcciones
+  opuestas al subir la concurrencia (medido: 1→8 llevó el rendimiento de 18,6 a 135,6 op/s
+  con el p50 moviéndose 1,2 %), así que compartir marco invitaría justo a la comparación
+  que los números prohíben.
+- **El gráfico de muestras ajusta su eje al rango medido; las barras arrancan en cero.**
+  No es una inconsistencia: una barra codifica el valor con su LONGITUD, así que truncarle
+  el eje miente. Una línea codifica el cambio con su FORMA, y anclada en cero una fase
+  pareja de 52–57 ms y una con un pico dibujan la misma raya plana en el quinto superior
+  de un gráfico vacío — que es exactamente lo que ese gráfico existe para distinguir.
 - **La columna Rendimiento usa `wallClockMs` de la fase, no `summary.opsPerSecond`.**
   Ese último es la inversa de la media y **se invierte** al subir la concurrencia: medido,
   concurrency 1→6 bajaba de 6.47 a 3.67 op/s reportados mientras el rendimiento real subía
@@ -216,6 +232,25 @@ dentro de `@theme`.
   vea. Las combinaciones repetidas se factorizan en recetas (`src/ui/button-recipes.ts`),
   nunca se construyen por interpolación.
 - Solo utilidades de Tailwind en el markup; nada de bloques `<style>` en los `.astro`.
+- **Gráficos: reglas verificadas, no opinadas.** Viven en `ui/chart-primitives.ts` para que
+  los tres compartan las mismas marcas.
+  1. **Grilla sólida, nunca punteada.** Una regla discontinua se lee como proyección o
+     umbral —algo contra lo que se mide— y acá es solo grilla. Lo recesivo sale del color
+     (`--color-hairline`), no de romper la línea.
+  2. **Etiqueta que no entra se acorta con elipsis, nunca se recorta.** Un rótulo anclado
+     a la derecha que desborda pierde sus PRIMEROS caracteres y nada avisa. El texto
+     completo queda en el tooltip.
+  3. **Leyenda siempre, con dos series o más.** Con el formulario en el otro paso, es lo
+     único en pantalla que dice qué color es qué motor: la identidad nunca puede descansar
+     solo en el color.
+  4. **El `<title>` va en el grupo de la marca, no en el `<svg>`.** En la raíz nombra el
+     dibujo entero, y todas las marcas terminan compartiendo el último escrito.
+  5. **La paleta se valida, no se opina.** `#f54e00` contra `#524ae9` da **ΔE 32,4 bajo
+     protanopia** y 40,7 en visión normal, muy por encima del umbral de 8.
+- **Dos pasos, no dos columnas.** El formulario ocupaba 24rem fijas toda la sesión, que es
+  justo el ancho que la tabla y el gráfico quieren cuando por fin hay datos. La barra de
+  control queda **fuera** de los dos pasos —el botón se asocia al form por `form="…"`, no
+  por anidamiento— así que volver a ejecutar no cuesta un viaje al formulario.
 - **Iconos: `src/ui/icons.ts`**, cuerpos SVG en strings (Lucide ISC + Simple Icons CC0).
   Sin librería ni JS en runtime. El mapeo operación/motor → icono vive en las tablas
   totales de `ui/labels.ts`, así que agregar un `OperationId` sin icono no compila.
