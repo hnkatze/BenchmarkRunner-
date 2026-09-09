@@ -12,8 +12,18 @@
  */
 export const REASON_MAX_LENGTH = 300
 
+/** Firestore answers a missing composite index with a console link to create it. */
+const LINK = /https?:\/\/\S+/
+
 export const failureReason = (reason: unknown): string => {
   const text = reason instanceof Error ? reason.message : String(reason)
   const line = text.replace(/\s+/g, ' ').trim()
-  return line.length > REASON_MAX_LENGTH ? line.slice(0, REASON_MAX_LENGTH - 1) + '…' : line
+  if (line.length <= REASON_MAX_LENGTH) return line
+
+  // The link is the actionable half of a Firestore index error and it sits at
+  // the END of the message — a plain truncation threw away the only part the
+  // reader can do anything with. Keep the head AND the whole link.
+  const head = line.slice(0, REASON_MAX_LENGTH - 1) + '…'
+  const link = LINK.exec(line)?.[0]
+  return link === undefined || head.includes(link) ? head : `${head} ${link}`
 }
