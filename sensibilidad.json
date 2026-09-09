@@ -1,0 +1,395 @@
+{
+  "motor": "mongodb",
+  "generado": "2026-09-09T03:47:14.296Z",
+  "base": {
+    "engines": [
+      "mongodb"
+    ],
+    "operations": [
+      "insertOne",
+      "findById"
+    ],
+    "queries": [],
+    "iterations": 30,
+    "warmupIterations": 5,
+    "documentSizeBytes": 1024,
+    "concurrency": 1
+  },
+  "barridos": [
+    {
+      "nombre": "Concurrencia",
+      "parametro": "concurrency",
+      "valores": [
+        1,
+        2,
+        4,
+        8,
+        16
+      ],
+      "filas": [
+        {
+          "variante": "concurrency=1",
+          "operacion": "insertOne",
+          "p50": 53.5,
+          "p95": 55.18,
+          "media": 53.78,
+          "max": 59.41,
+          "desviacion": 1.33,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 18.57,
+          "opsPorSegundoInverso": 18.59
+        },
+        {
+          "variante": "concurrency=1",
+          "operacion": "findById",
+          "p50": 50.36,
+          "p95": 51.72,
+          "media": 50.46,
+          "max": 52.46,
+          "desviacion": 0.61,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 19.79,
+          "opsPorSegundoInverso": 19.82
+        },
+        {
+          "variante": "concurrency=2",
+          "operacion": "insertOne",
+          "p50": 53.61,
+          "p95": 55.13,
+          "media": 53.54,
+          "max": 55.23,
+          "desviacion": 0.89,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 37.14,
+          "opsPorSegundoInverso": 18.68
+        },
+        {
+          "variante": "concurrency=2",
+          "operacion": "findById",
+          "p50": 50.3,
+          "p95": 277.4,
+          "media": 77.75,
+          "max": 462.11,
+          "desviacion": 102.7,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 25.62,
+          "opsPorSegundoInverso": 12.86
+        },
+        {
+          "variante": "concurrency=4",
+          "operacion": "insertOne",
+          "p50": 53.87,
+          "p95": 55.23,
+          "media": 53.76,
+          "max": 55.46,
+          "desviacion": 0.93,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 69.05,
+          "opsPorSegundoInverso": 18.6
+        },
+        {
+          "variante": "concurrency=4",
+          "operacion": "findById",
+          "p50": 50.42,
+          "p95": 51.11,
+          "media": 50.42,
+          "max": 51.57,
+          "desviacion": 0.5,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 73.42,
+          "opsPorSegundoInverso": 19.83
+        },
+        {
+          "variante": "concurrency=8",
+          "operacion": "insertOne",
+          "p50": 54.16,
+          "p95": 55.81,
+          "media": 54.24,
+          "max": 56.14,
+          "desviacion": 0.87,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 135.57,
+          "opsPorSegundoInverso": 18.44
+        },
+        {
+          "variante": "concurrency=8",
+          "operacion": "findById",
+          "p50": 51.53,
+          "p95": 259.51,
+          "media": 106.55,
+          "max": 260.11,
+          "desviacion": 91.92,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 72.08,
+          "opsPorSegundoInverso": 9.39
+        },
+        {
+          "variante": "concurrency=16",
+          "operacion": "insertOne",
+          "p50": 55.86,
+          "p95": 245.37,
+          "media": 78.51,
+          "max": 378.92,
+          "desviacion": 78.47,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 68.62,
+          "opsPorSegundoInverso": 12.74
+        },
+        {
+          "variante": "concurrency=16",
+          "operacion": "findById",
+          "p50": 51.79,
+          "p95": 232.16,
+          "media": 74.25,
+          "max": 369.38,
+          "desviacion": 70.9,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 49.76,
+          "opsPorSegundoInverso": 13.47
+        }
+      ]
+    },
+    {
+      "nombre": "Tamaño del documento",
+      "parametro": "documentSizeBytes",
+      "valores": [
+        256,
+        1024,
+        4096,
+        16384
+      ],
+      "filas": [
+        {
+          "variante": "documentSizeBytes=256",
+          "operacion": "insertOne",
+          "p50": 53.05,
+          "p95": 54.63,
+          "media": 53.71,
+          "max": 69.02,
+          "desviacion": 2.96,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 18.6,
+          "opsPorSegundoInverso": 18.62
+        },
+        {
+          "variante": "documentSizeBytes=256",
+          "operacion": "findById",
+          "p50": 50.45,
+          "p95": 53.91,
+          "media": 50.95,
+          "max": 59.19,
+          "desviacion": 1.91,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 19.6,
+          "opsPorSegundoInverso": 19.63
+        },
+        {
+          "variante": "documentSizeBytes=1024",
+          "operacion": "insertOne",
+          "p50": 53.04,
+          "p95": 55.2,
+          "media": 53.43,
+          "max": 59.92,
+          "desviacion": 1.53,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 18.69,
+          "opsPorSegundoInverso": 18.71
+        },
+        {
+          "variante": "documentSizeBytes=1024",
+          "operacion": "findById",
+          "p50": 50.56,
+          "p95": 51.92,
+          "media": 50.86,
+          "max": 59.75,
+          "desviacion": 1.83,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 19.63,
+          "opsPorSegundoInverso": 19.66
+        },
+        {
+          "variante": "documentSizeBytes=4096",
+          "operacion": "insertOne",
+          "p50": 52.85,
+          "p95": 56.18,
+          "media": 53.65,
+          "max": 66.61,
+          "desviacion": 2.64,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 18.61,
+          "opsPorSegundoInverso": 18.64
+        },
+        {
+          "variante": "documentSizeBytes=4096",
+          "operacion": "findById",
+          "p50": 50.4,
+          "p95": 52,
+          "media": 50.54,
+          "max": 52.17,
+          "desviacion": 0.8,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 19.76,
+          "opsPorSegundoInverso": 19.79
+        },
+        {
+          "variante": "documentSizeBytes=16384",
+          "operacion": "insertOne",
+          "p50": 54.63,
+          "p95": 65.43,
+          "media": 55.96,
+          "max": 69.61,
+          "desviacion": 3.76,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 17.85,
+          "opsPorSegundoInverso": 17.87
+        },
+        {
+          "variante": "documentSizeBytes=16384",
+          "operacion": "findById",
+          "p50": 51.31,
+          "p95": 59.21,
+          "media": 52.13,
+          "max": 63.76,
+          "desviacion": 3.08,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 19.16,
+          "opsPorSegundoInverso": 19.18
+        }
+      ]
+    },
+    {
+      "nombre": "Iteraciones",
+      "parametro": "iterations",
+      "valores": [
+        10,
+        30,
+        100,
+        200
+      ],
+      "filas": [
+        {
+          "variante": "iterations=10",
+          "operacion": "insertOne",
+          "p50": 52.84,
+          "p95": 53.93,
+          "media": 52.89,
+          "max": 53.97,
+          "desviacion": 0.81,
+          "muestras": 10,
+          "errores": 0,
+          "opsPorSegundo": 18.88,
+          "opsPorSegundoInverso": 18.91
+        },
+        {
+          "variante": "iterations=10",
+          "operacion": "findById",
+          "p50": 50.03,
+          "p95": 52.22,
+          "media": 50.56,
+          "max": 52.39,
+          "desviacion": 0.94,
+          "muestras": 10,
+          "errores": 0,
+          "opsPorSegundo": 19.74,
+          "opsPorSegundoInverso": 19.78
+        },
+        {
+          "variante": "iterations=30",
+          "operacion": "insertOne",
+          "p50": 52.93,
+          "p95": 54.91,
+          "media": 53.16,
+          "max": 57.98,
+          "desviacion": 1.24,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 18.79,
+          "opsPorSegundoInverso": 18.81
+        },
+        {
+          "variante": "iterations=30",
+          "operacion": "findById",
+          "p50": 50.53,
+          "p95": 55.22,
+          "media": 51.11,
+          "max": 57.81,
+          "desviacion": 1.93,
+          "muestras": 30,
+          "errores": 0,
+          "opsPorSegundo": 19.54,
+          "opsPorSegundoInverso": 19.57
+        },
+        {
+          "variante": "iterations=100",
+          "operacion": "insertOne",
+          "p50": 53.15,
+          "p95": 55.99,
+          "media": 53.73,
+          "max": 66.11,
+          "desviacion": 2.4,
+          "muestras": 100,
+          "errores": 0,
+          "opsPorSegundo": 18.59,
+          "opsPorSegundoInverso": 18.61
+        },
+        {
+          "variante": "iterations=100",
+          "operacion": "findById",
+          "p50": 50.22,
+          "p95": 52.19,
+          "media": 50.76,
+          "max": 65.05,
+          "desviacion": 2.12,
+          "muestras": 100,
+          "errores": 0,
+          "opsPorSegundo": 19.67,
+          "opsPorSegundoInverso": 19.7
+        },
+        {
+          "variante": "iterations=200",
+          "operacion": "insertOne",
+          "p50": 53.12,
+          "p95": 55.37,
+          "media": 53.53,
+          "max": 67.79,
+          "desviacion": 2.03,
+          "muestras": 200,
+          "errores": 0,
+          "opsPorSegundo": 18.66,
+          "opsPorSegundoInverso": 18.68
+        },
+        {
+          "variante": "iterations=200",
+          "operacion": "findById",
+          "p50": 50.54,
+          "p95": 52.99,
+          "media": 50.98,
+          "max": 65.57,
+          "desviacion": 2.08,
+          "muestras": 200,
+          "errores": 0,
+          "opsPorSegundo": 19.59,
+          "opsPorSegundoInverso": 19.62
+        }
+      ]
+    }
+  ]
+}
