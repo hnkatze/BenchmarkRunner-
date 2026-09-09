@@ -191,7 +191,57 @@ rg -o "(fill|stroke)-[a-z-]+" src/ | sort -u
 
 y confirmar que cada nombre existe en `@theme`.
 
-## 9. Reglas heredadas que siguen valiendo
+## 9. El eje de movimiento
+
+La referencia no define un eje de tiempo: Cursor es un sitio estático y no
+documenta ni una curva ni una duración. Esto es, por lo tanto, una extensión
+del sistema, no una herencia — y por eso el vocabulario se mantiene deliberadamente
+pequeño en vez de copiar una escala completa de otro lugar.
+
+| Token | Valor | Para qué |
+|---|---|---|
+| `--ease-out-quart` | `cubic-bezier(0.25, 1, 0.5, 1)` | la única curva; todo lo que se mueve entra con ella |
+| `--animate-rise` | `rise 420ms var(--ease-out-quart) both` | chrome de entrada (header, banner, barra de control, card del form) |
+
+`@keyframes reveal` existe pero no tiene token: `.reveal-on-scroll` lo consume
+directo con `animation: reveal linear both` porque una animación dirigida por
+scroll avanza con la posición del scroll, no con un reloj — una duración en
+milisegundos ahí sería incorrecta. Una sola curva y una sola duración con
+nombre son el mínimo que separa "entra de golpe" de "entra con intención";
+agregar una segunda curva compraría variedad que nadie percibe.
+
+**Solo `opacity` y `transform`.** El compositor las anima sin recalcular
+layout; cualquier otra propiedad fuerza reflow por frame, y esta página
+dibuja tres SVG completos (`PortDiagram`, `RunFlowDiagram`, `PhaseDiagram`)
+que no pueden permitirse repintarse en cada uno.
+
+**El escalonado de la consola llega hasta la card y no entra al formulario.**
+Header, banner, barra de control y la card del `<form>` reciben
+`animate-rise` con un delay creciente; ningún fieldset, label o input
+adentro se anima. Retrasar un control que el usuario ya quiere tocar es
+hostilidad disfrazada de diseño, no pulido.
+
+**La entrada por tiempo no lleva fade.** Un elemento en `opacity: 0` sigue
+siendo enfocable y clickeable: animar la opacidad de un contenedor que tiene
+controles adentro los deja alcanzables por teclado antes de ser visibles. El
+deslizamiento solo mueve; el elemento está visible todo el tiempo. El fade
+queda reservado al reveal por scroll, donde el foco al entrar scrollea la
+sección a la vista y ese mismo scroll la revela.
+
+**Nada del paso 2 se anima. Esta es la regla más importante de la sección.**
+La tabla, los tres gráficos, la barra de progreso y la región de estado se
+repintan cientos de veces por corrida — es la superficie que recibe cada
+`sample-completed` del SSE. Esta app mide latencia; sumarle costo de
+composición al hilo principal que ese mismo paso está reportando sesgaría los
+números que la herramienta existe para producir.
+
+**`prefers-reduced-motion: reduce` aplasta duración Y delay.** Aplastar solo
+la duración deja el `animation-delay` intacto: con un escalonado de varios
+elementos, alguien que pidió menos movimiento vería el contenido aparecer
+tarde y en escalones — exactamente el efecto que reduced-motion existe para
+evitar, solo que estirado en el tiempo en vez de dibujado en el espacio.
+
+## 10. Reglas heredadas que siguen valiendo
 
 - **Solo utilidades de Tailwind en el markup**; nada de bloques `<style>` en
   los `.astro`.

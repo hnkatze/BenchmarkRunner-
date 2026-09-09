@@ -142,6 +142,43 @@
      the comparison table and the chart can coexist, and at that width a figure
      blows up and a paragraph leaves a third of the card empty. */
   --container-editorial: 96rem;
+
+  /* Movimiento. La entrada por tiempo no lleva fade: opacity: 0 sigue siendo
+     enfocable, y eso deja alcanzable por teclado un control aún invisible. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --animate-rise: rise 420ms var(--ease-out-quart) both;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(8px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Scroll-driven, con degradación limpia: donde no hay soporte no hay
+   animación y el contenido simplemente está visible. */
+@supports (animation-timeline: view()) {
+  @media not (prefers-reduced-motion: reduce) {
+    .reveal-on-scroll {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 22%;
+    }
+  }
 }
 
 @layer base {
@@ -162,7 +199,10 @@
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
   }
 }

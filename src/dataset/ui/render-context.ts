@@ -4,16 +4,17 @@ import { isEngineId } from '../../benchmark/domain'
 import { icon } from '../../ui/icons'
 
 /**
- * Renders the conditions each engine is measured under.
- *
- * The panel exists because a latency number without its conditions is not a
- * measurement, it is an anecdote. It also carries the part of the study that a
- * table of milliseconds cannot: the things Firestore declines to report, shown
- * as stated reasons rather than omitted.
+ * A latency number without its conditions is not a measurement, it is an
+ * anecdote — gaps included, shown as stated reasons rather than omitted.
  */
 
-const CARD = 'grid content-start gap-5 rounded-card border border-hairline bg-canvas p-6'
+/* Interpolated from whole literals only: the scanner reads source text, so a
+   class name may never be split across the boundary. */
+const CARD_SURFACE = 'rounded-card border border-hairline bg-canvas p-6'
+const CARD = `grid content-start gap-4 ${CARD_SURFACE}`
+const CARD_SECTION = 'grid gap-1.5'
 const LABEL = 'text-caption-uppercase font-semibold text-muted'
+const CARD_TITLE = 'flex items-center gap-2 text-body-md font-semibold text-primary'
 const NUM = 'font-mono text-body-sm tnum text-primary'
 
 const formatBytes = (bytes: number): string => {
@@ -47,28 +48,31 @@ const section = (title: string): HTMLElement => {
   return heading
 }
 
+/** The coloured mark plus the engine's name, for whatever heading level asks. */
+const engineMark = (context: EngineContext): readonly Node[] => {
+  if (!isEngineId(context.engine)) return [document.createTextNode(context.engine)]
+
+  const display = ENGINE_DISPLAY[context.engine]
+  const mark = document.createElement('span')
+  mark.className = 'inline-flex'
+  mark.style.color = `var(${display.colorVar})`
+  mark.innerHTML = icon(display.icon, 'size-5')
+  return [mark, document.createTextNode(display.label)]
+}
+
 const engineCard = (context: EngineContext): HTMLElement => {
   const card = document.createElement('article')
   card.className = CARD
 
   const head = document.createElement('h3')
-  head.className = 'flex items-center gap-2 text-body-md font-semibold text-primary'
-  if (isEngineId(context.engine)) {
-    const display = ENGINE_DISPLAY[context.engine]
-    const mark = document.createElement('span')
-    mark.className = 'inline-flex'
-    mark.style.color = `var(${display.colorVar})`
-    mark.innerHTML = icon(display.icon, 'size-5')
-    head.append(mark, document.createTextNode(display.label))
-  } else {
-    head.textContent = context.engine
-  }
+  head.className = CARD_TITLE
+  head.append(...engineMark(context))
   card.append(head)
 
   if (context.network !== null) {
     const net = context.network
     const block = document.createElement('div')
-    block.className = 'grid gap-2'
+    block.className = CARD_SECTION
     block.append(
       section('Red'),
       row('Ida y vuelta, mediana', `${net.medianRttMs} ms`),
@@ -85,7 +89,7 @@ const engineCard = (context: EngineContext): HTMLElement => {
   if (context.storage !== null) {
     const store = context.storage
     const block = document.createElement('div')
-    block.className = 'grid gap-2'
+    block.className = CARD_SECTION
     block.append(section('Tamaño'), row('Documentos', formatCount(store.documents)))
 
     if (totalBytes(store) > 0) {
@@ -102,27 +106,62 @@ const engineCard = (context: EngineContext): HTMLElement => {
   }
 
   const params = document.createElement('div')
-  params.className = 'grid gap-2'
+  params.className = CARD_SECTION
   params.append(section('Parámetros'))
   for (const field of context.parameters) params.append(row(field.label, field.value, false))
   card.append(params)
 
-  if (context.unavailable.length > 0) {
-    const block = document.createElement('div')
-    block.className = 'grid gap-3 rounded-input bg-inset p-4'
-    block.append(section('Lo que este motor no informa'))
+  return card
+}
+
+/**
+ * Nested, an absence reads as a footnote to one engine; side by side the gaps
+ * read as what they are — the shape of the comparison itself.
+ * @param contexts - every engine reported by the endpoint
+ * @returns the card, or `null` when no engine declared a gap
+ */
+const unavailableCard = (contexts: readonly EngineContext[]): HTMLElement | null => {
+  const withGaps = contexts.filter((context) => context.unavailable.length > 0)
+  if (withGaps.length === 0) return null
+
+  const card = document.createElement('article')
+  card.className = `grid gap-5 ${CARD_SURFACE}`
+
+  const head = document.createElement('h3')
+  head.className = CARD_TITLE
+  head.textContent = 'Lo que los motores no informan'
+  card.append(head)
+
+  for (const context of withGaps) {
+    const group = document.createElement('div')
+    group.className = 'grid gap-3'
+
+    const name = document.createElement('h4')
+    name.className = 'flex items-center gap-2 text-body-sm font-semibold text-secondary'
+    name.append(...engineMark(context))
+    group.append(name)
+
+    const items = document.createElement('div')
+    /* Two columns and no wider: each `why` runs 150-200 characters, and a fourth
+       column would cut them to ~40 per line, under the comfortable range. */
+    items.className = 'grid gap-x-8 gap-y-4 md:grid-cols-2'
     for (const entry of context.unavailable) {
       const item = document.createElement('div')
+
       const what = document.createElement('p')
       what.className = 'text-body-sm font-medium text-primary'
       what.textContent = entry.what
+
       const why = document.createElement('p')
       why.className = 'mt-1 text-caption leading-relaxed text-muted'
       why.textContent = entry.why
+
       item.append(what, why)
-      block.append(item)
+      items.append(item)
     }
-    card.append(block)
+
+    group.append(items)
+    card.append(group)
   }
 
   return card
@@ -150,10 +189,18 @@ export const renderContext = async (host: HTMLElement): Promise<void> => {
     }
 
     host.textContent = ''
+    const stack = document.createElement('div')
+    stack.className = 'grid gap-6'
+
     const grid = document.createElement('div')
     grid.className = 'grid gap-5 lg:grid-cols-2'
     for (const context of payload.contexts) grid.append(engineCard(context))
-    host.append(grid)
+    stack.append(grid)
+
+    const gaps = unavailableCard(payload.contexts)
+    if (gaps !== null) stack.append(gaps)
+
+    host.append(stack)
 
     for (const failure of payload.failures) {
       const note = document.createElement('p')

@@ -45,9 +45,8 @@ const winnerBadge = (text: string): HTMLElement => {
 }
 
 /**
- * Cursor does define a semantic red, but it is reserved for form and system
- * errors — a failed benchmark operation is data, not a broken control. The
- * count stays inverted ink: the only filled surface in a table of hairlines.
+ * Cursor's semantic red is reserved for form and system errors, and a failed
+ * operation is data, not a broken control. Inverted ink instead.
  * @param count - errors recorded during the phase
  * @returns the cell, plain and muted at zero
  */
@@ -72,7 +71,7 @@ const errorCell = (count: number): HTMLTableCellElement => {
 
 const emptyState = (): HTMLElement => {
   const wrapper = document.createElement('div')
-  wrapper.className = 'grid justify-items-center gap-4 px-10 py-16 text-center'
+  wrapper.className = 'grid justify-items-center gap-4 px-6 py-16 text-center'
 
   const glyph = document.createElement('span')
   glyph.className = 'inline-flex text-subtle'
@@ -107,7 +106,7 @@ export const renderResults = (host: HTMLElement, results: readonly OperationResu
     section.className = 'border-b border-hairline last:border-b-0'
 
     const heading = document.createElement('h3')
-    heading.className = 'flex flex-wrap items-baseline gap-x-2 px-10 pt-8 text-body-md font-semibold text-primary'
+    heading.className = 'flex flex-wrap items-baseline gap-x-2 px-6 pt-8 text-body-md font-semibold text-primary'
     heading.append(document.createTextNode(display.label))
 
     const hint = document.createElement('span')
@@ -167,9 +166,8 @@ export const renderResults = (host: HTMLElement, results: readonly OperationResu
         continue
       }
 
-      // Never assign textContent on a node that also holds injected markup: it
-      // would wipe the tooltip. Label and trigger are appended side by side, and
-      // the id is scoped by operation because every table repeats these columns.
+      // textContent on a node holding injected markup would wipe the tooltip, so
+      // label and trigger are appended side by side; the id is scoped per operation.
       const wrapper = document.createElement('span')
       wrapper.className = 'inline-flex items-center gap-1.5'
       wrapper.append(document.createTextNode(text))
