@@ -110,6 +110,11 @@ const TONE_FILL = {
 <script>
   import { createHttpBenchmarkRunner } from '../benchmark/adapters/http-benchmark-runner'
   import { BenchmarkConsole } from '../benchmark/ui/benchmark-console'
+  import { initIndexPanel } from '../benchmark/ui/index-panel'
+
+  // Independent of the island: the indexes have to be checkable before a run,
+  // which is precisely when the console has nothing to say yet.
+  initIndexPanel()
 
   // Composition root: the only place allowed to know which adapter drives the island.
   // `instanceof` rather than querySelector<T>, which only asserts the type.

@@ -85,6 +85,20 @@
       ]
     },
     {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "customerId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "total",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "orderItems",
       "queryScope": "COLLECTION",
       "fields": [
@@ -94,7 +108,7 @@
         },
         {
           "fieldPath": "lineTotal",
-          "order": "DESCENDING"
+          "order": "ASCENDING"
         }
       ]
     },
@@ -123,6 +137,20 @@
         {
           "fieldPath": "rating",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "productId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "rating",
+          "order": "ASCENDING"
         }
       ]
     },

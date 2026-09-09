@@ -88,6 +88,41 @@ export const sampleFailureNotice = (failed: number, reason: string): string =>
 export const phaseFailureNotice = (where: string, reason: string): string =>
   `Fase abandonada — ${where}: ${reason}`
 
+/* ── Índices de Firestore ───────────────────────────────────────────────────
+   Los índices viven en el PROYECTO, no en el repositorio: apuntar la app a un
+   proyecto nuevo —que es un `.env` de distancia— los deja en cero, y siete de
+   las diez consultas fallan hasta reconstruirlos. */
+
+export const INDEX_COPY = {
+  title: 'Índices de Firestore',
+  explainer:
+    'Firestore indexa cada campo por su cuenta, pero solo de a uno. Los compuestos —los que hacen falta al combinar campos u ordenar por uno que no se filtra— no son automáticos, y sin ellos siete de las diez consultas fallan.',
+  idle: 'Sin consultar.',
+  checking: 'Consultando…',
+  creating: 'Creando los que faltan…',
+  check: 'Revisar',
+  create: 'Crear los que faltan',
+  unreachable: 'No se pudo consultar la API de Firestore.',
+  notConfigured: 'Faltan credenciales de Firestore en el servidor.',
+  denied:
+    'Sin permiso para crear índices. El rol por defecto del service account no lo incluye: hay que darle roles/datastore.indexAdmin en IAM.',
+  building: 'Se construyen en segundo plano. Hasta que terminen, una consulta falla igual que sin índice.',
+} as const
+
+export const INDEX_STATE_LABEL = {
+  ready: 'listo',
+  building: 'armando',
+  missing: 'falta',
+  created: 'creado',
+  denied: 'sin permiso',
+  error: 'error',
+} as const
+
+export const indexSummary = (ready: number, total: number, missing: number): string =>
+  missing === 0
+    ? `${ready} de ${total} índices listos.`
+    : `${ready} de ${total} listos · faltan ${missing}.`
+
 export const finishedStatus = (seconds: string): string =>
   `Ejecución completada en ${seconds} s.`
 

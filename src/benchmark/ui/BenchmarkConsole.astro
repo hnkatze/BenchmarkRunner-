@@ -4,7 +4,7 @@ import { QUERY_SPECS, queriesOfKind } from '../../dataset/domain/queries.ts'
 import { ghostButton, solidButton } from '../../ui/button-recipes'
 import Checkbox from '../../ui/Checkbox.astro'
 import { icon } from '../../ui/icons'
-import { GLOSSARY, type GlossaryTermId } from './copy'
+import { GLOSSARY, INDEX_COPY, type GlossaryTermId } from './copy'
 import { infoTip } from '../../ui/info-tip'
 import { ENGINE_DISPLAY, PHASE_DISPLAY, firestoreStrategyLabel } from './labels'
 
@@ -154,6 +154,34 @@ const numericFields = [
         ))
       }
     </fieldset>
+
+    {/* Los índices viven en el proyecto, no en el repositorio: apuntar la app a
+        otro proyecto los deja en cero y siete consultas fallan. Revisar es
+        gratis y sin permisos especiales; crear necesita un rol de IAM. */}
+    <div class="grid gap-2.5" data-ref="index-panel">
+      <span class={`${legendText} mb-2.5`}>{INDEX_COPY.title}</span>
+      <p class="px-2 text-caption text-muted">{INDEX_COPY.explainer}</p>
+      <p
+        data-ref="index-status"
+        class="rounded-input border border-hairline bg-canvas px-5 py-4 text-body-sm text-secondary"
+      >
+        {INDEX_COPY.idle}
+      </p>
+      <div class="flex flex-wrap gap-2.5">
+        <button type="button" data-ref="index-check" class={ghostButton('sm')}>
+          {INDEX_COPY.check}
+        </button>
+        <button type="button" data-ref="index-create" class={ghostButton('sm')}>
+          {INDEX_COPY.create}
+        </button>
+      </div>
+      <ul
+        data-ref="index-list"
+        hidden
+        class="grid gap-1 overflow-x-auto px-2 font-mono text-caption tnum text-muted"
+      >
+      </ul>
+    </div>
 
     <fieldset class="grid gap-5">
       <legend class={`${legendText} mb-2.5`}>Carga de trabajo</legend>
