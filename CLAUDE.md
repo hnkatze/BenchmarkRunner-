@@ -19,6 +19,7 @@ El dominio define **un puerto**, y todo lo demás lo implementa:
 ```ts
 // src/benchmark/domain/benchmark-runner.ts
 export type BenchmarkRunner = {
+  readonly plannedSamples: (config: BenchmarkConfig) => number
   readonly run: (config: BenchmarkConfig, signal: AbortSignal) => AsyncIterable<RunEvent>
 }
 ```
@@ -29,7 +30,13 @@ tocar la UI para agregar un motor, el diseño se rompió.
 
 **`run` usa sintaxis de propiedad, no de método.** `strictFunctionTypes` no aplica a los
 métodos abreviados: un adaptador con parámetros más angostos compilaría igual. No revertir
-a `run(config, signal): ...`.
+a `run(config, signal): ...`. `plannedSamples` va igual, por lo mismo.
+
+**`plannedSamples` existe para que el combinador anuncie un total exacto.** Antes
+`sequential-runner` escalaba el total del *primer* runner por la cantidad de runners; con
+CRUD y consultas mezclados esos runners miden fases distintas, así que el número anunciado
+no era el que la corrida iba a alcanzar nunca. Preguntarle a cada uno es la única forma
+de sumar bien, y el clamp de `BENCH_MAX_ITERATIONS` ya viene aplicado en la respuesta.
 
 ## Invariantes que no se negocian
 
@@ -57,6 +64,7 @@ buscar sus tablas:
 | `FIELD_LABELS: Record<keyof BenchmarkConfig, string>` | `src/benchmark/ui/copy.ts` | un campo a `BenchmarkConfig` |
 | `ENGINE_DISPLAY` / `OPERATION_DISPLAY` | `src/benchmark/ui/labels.ts` | un motor o una operación |
 | `RUN_EVENT_TYPES` + el centinela `MissingEventType` | `src/benchmark/domain/run-event.ts` | una variante a `RunEvent` |
+| `BENCH_INDEXES: Record<OperationId, readonly BenchIndexSpec[]>` | `src/benchmark/domain/bench-indexes.ts` | un `OperationId` |
 | `switch` sobre uniones | dominio y adaptadores | cualquier variante — el `default` hace `const unhandled: never` |
 
 `satisfies` por sí solo **no** detecta miembros faltantes; por eso el centinela
@@ -98,6 +106,33 @@ buscar sus tablas:
   más cercano: con muestras cortas el p95 no queda clavado a una muestra.
 - **Locale `es-HN`, no `es`.** `es`/`es-ES` usan coma decimal (`42,18`); `es-HN` mantiene
   el punto. Único punto de cambio: `LOCALE` en `src/benchmark/ui/format.ts`.
+- **Una muestra que falla se anuncia, no solo se cuenta.** El evento es `sample-failed` y
+  el progreso mide **intentos**, no éxitos. Antes un fallo solo incrementaba `errorCount`
+  dentro de la fase: una fase que fallaba en las 200 iteraciones — una colección sin
+  sembrar, un índice compuesto ausente — no emitía nada, y era **indistinguible de una
+  corrida colgada**. Sin barra, sin estado, sin error, hasta que terminaba la fase. El
+  evento lleva la causa del motor (`failure-reason.ts`, recortada a 300 caracteres porque
+  el rechazo por índice faltante de Firestore trae una URL enorme) y la UI la muestra
+  mientras corre. **No derivar el progreso de `completedSamples` solo**: es
+  `completedSamples + failedSamples`.
+- **Ninguna llamada medida puede durar más de `SAMPLE_TIMEOUT_MS` (15 s).** Cuando se
+  acaba el cupo diario, el SDK de firebase-admin responde `RESOURCE_EXHAUSTED` y
+  **reintenta internamente hasta 600 s** antes de rechazar. Un calentamiento de 20
+  iteraciones tardaba **más de tres horas** en llegar a la primera muestra, y la corrida
+  parecía colgada estando técnicamente viva. Una llamada de diez minutos no es una
+  medición de latencia: es un cuelgue. `adapters/deadline.ts` la convierte en muestra
+  fallida con causa. El plazo también escucha el `AbortSignal`, así que Cancelar responde
+  en 15 s en vez de esperar al SDK.
+- **Una fase se abandona tras 3 calentamientos o 5 muestras seguidas en falso**, y solo
+  mientras **ninguna** haya funcionado: una muestra mala entre buenas es dato, cinco
+  seguidas sin ninguna buena es una fase rota, y seguir gasta tiempo y cupo para aprender
+  lo mismo. El límite del calentamiento es más bajo porque esas muestras se descartan igual.
+- **`phase-failed` lleva `reason`, y el reducer contabiliza las muestras que la fase ya no
+  va a emitir.** Sin lo primero, una fase que muere en el *setup* —vaciar la colección,
+  sembrarla— no emite ni una muestra y la UI no tiene absolutamente nada que mostrar. Sin
+  lo segundo, la barra se queda corta del 100% y vuelve a parecer un cuelgue.
+- **La limpieza del `finally` usa `NEVER_ABORTS`.** Cancelar no puede dejar la colección
+  llena: la corrida siguiente mediría contra datos sucios.
 - **Firestore vive en `nam5`, que es multirregión.** Cada escritura replica entre regiones
   de EE. UU. antes de confirmarse. No es comparable contra un cluster de región única sin
   declararlo. La UI lo dice en el banner.
@@ -238,9 +273,19 @@ Los borrados también consumen cupo, así que rehacer una siembra en Firestore c
 de borrados más otro de escrituras: **hay un intento por día**. El seeder guarda el progreso
 en `.seed-state.<motor>.<escala>.json` y `Ctrl+C` no lo pierde.
 
-**`ANALISIS.md` es el entregable del estudio.** Cubre los nueve criterios con los
-números medidos y, sobre todo, con lo que cada motor NO permite medir. Si cambia una
-medición, se actualiza ahí — no en un comentario suelto.
+### Los tres documentos, y qué va en cada uno
+
+| Documento | Qué cubre | Cuándo se toca |
+|---|---|---|
+| `ANALISIS.md` | los nueve criterios del enunciado y lo que cada motor NO permite medir | cambia una medición |
+| `PROYECTO-II.md` | la rúbrica de la clase: planificación, captura/análisis, plan de acción, KPI, pruebas sensitivas, registros | cambia un número de la entrega |
+| `PRESENTACION.md` | guion lámina por lámina, demo en vivo, reparto de tiempo, preguntas probables | cambia la narrativa |
+
+Se solapan a propósito en los números, **no** en el propósito. Si cambia una
+medición, se actualiza en los tres — nunca en un comentario suelto.
+
+`sensibilidad.json` guarda los datos crudos de los barridos, para reprocesarlos sin
+volver a gastar corridas.
 
 `GET /api/context` reporta en vivo las condiciones de cada motor: red (mediana de 7
 muestras), tamaño y parámetros. Nunca se cachea: un contexto cacheado describiría una
@@ -255,9 +300,19 @@ base de otro momento al lado de números de este.
   documento. Emular `GROUP BY` trayendo todo costaría 1.800.000 lecturas/día (36× sobre el
   cupo); una agregación por grupo cuesta 3.000. **600× de diferencia** — pero exige
   cardinalidad conocida y acotada, así que **no generaliza**.
-- **Firestore no puede crear índices compuestos desde el SDK.** Se declaran en
-  `firestore.indexes.json` (generado por `scripts/firestore-indexes.mjs` desde la misma
-  tabla) y se construyen en background: no hay momento del cliente que cronometrar.
+- **Firestore no puede crear índices compuestos desde el SDK — pero sí desde la API Admin
+  REST.** El SDK no expone `createIndex`; `POST .../collectionGroups/{c}/indexes` sí. Por
+  eso `scripts/firestore-indexes.mjs` tiene dos salidas desde la misma tabla: `--write`
+  emite `firestore.indexes.json` para `firebase deploy`, y `--deploy` los crea directo con
+  el service account del `.env`. Se construyen en background, así que no hay momento del
+  cliente que cronometrar, y **una consulta contra un índice que todavía se está armando
+  falla exactamente igual que contra uno inexistente**.
+  El service account necesita permiso de creación (`roles/datastore.indexAdmin` o
+  equivalente): con el rol de solo datos, `--deploy` lista bien y devuelve **403** al crear.
+- **`firestore.indexes.json` declara también `_bench_queryFiltered`.** Un
+  `firebase deploy --only firestore:indexes` trata el archivo como la verdad completa y
+  ofrece borrar todo índice que no figure. Declarar solo las colecciones del dataset se
+  llevaría puesto, un deploy después, el índice que hace funcionar esa fase del CRUD.
 - **Firestore no expone el tamaño de la base por API.** Mongo lo da con `dbStats`.
 - **Firestore no tiene parámetros de cluster.** Es serverless: no hay tier, ni CPU, ni RAM.
   Solo ubicación y modo. No se pueden "igualar parámetros"; solo declarar los dos lados.
@@ -282,6 +337,14 @@ node --experimental-strip-types --env-file=.env scripts/seed.mjs --scale=paired
 node --experimental-strip-types --env-file=.env scripts/seed.mjs --engine=firestore   # techo 19.000
 node --experimental-strip-types --env-file=.env scripts/seed.mjs --scale=demo         # 1M, solo Mongo
 node --experimental-strip-types scripts/firestore-indexes.mjs --write
+node --experimental-strip-types --env-file=.env scripts/firestore-indexes.mjs --deploy
+```
+
+Pruebas sensitivas — un parámetro a la vez, contra el mismo endpoint que maneja la
+interfaz (hace falta `npm run dev` en otra terminal):
+
+```bash
+node scripts/sensitivity.mjs --engine=mongodb --out=sensibilidad.json
 ```
 
 Verificación de credenciales y conectividad:
@@ -336,10 +399,22 @@ Servidor de desarrollo en segundo plano: `astro dev --background`, y se maneja c
   de 1.9× en `findById` a 2.4× en `insertOne`. Un factor común a todas las operaciones —
   la latencia de red — es lo que manda. Desplegado, la función mide desde `iad1` y estos
   números cambian.
-- **`queryFiltered` en Firestore exige un índice compuesto creado a mano, una sola vez**
-  (`_bench_queryFiltered`: `bucket` ASC, `seq` ASC). Ya está creado en
-  el proyecto Firebase en uso. En un proyecto nuevo hay que rehacerlo o esa fase
-  devuelve `errorCount = iterations`; el link exacto aparece en los logs cuando falla.
+- **`queryFiltered` en Firestore exige un índice compuesto** (`_bench_queryFiltered`:
+  `bucket` ASC, `seq` ASC). Está creado en el proyecto en uso — verificado listando la API
+  Admin. En un proyecto nuevo hay que rehacerlo o esa fase devuelve
+  `errorCount = iterations`; el link exacto aparece en los logs cuando falla.
+- **El dataset de Firestore NO está sembrado.** Solo MongoDB lo está
+  (`.seed-state.mongodb.paired.json`, 18.000 documentos). La base de Firestore tiene
+  únicamente colecciones `_bench_*` residuales. Consecuencia directa: **las 10 fases de
+  consulta contra Firestore fallan enteras** — las 5 nativas por índice compuesto ausente,
+  las 5 emuladas por leer colecciones vacías. Desde el arreglo de `sample-failed` eso se
+  ve en la UI en vez de parecer una corrida colgada, pero sigue siendo un dato faltante.
+  Sembrar cuesta 18.000 de las 20.000 escrituras diarias del plan Spark: **un intento
+  por día**.
+- **Los 9 índices compuestos del dataset tampoco existen todavía**, y el service account
+  del `.env` no tiene permiso para crearlos: `--deploy` los lista pero devuelve 403 al
+  hacer POST. Hace falta darle `roles/datastore.indexAdmin` en IAM, o crearlos desde la
+  consola.
 - **Multi-motor: implementado.** `createSequentialRunner` (`adapters/sequential-runner.ts`)
   combina varios runners **cumpliendo el mismo puerto**, así que la UI no distingue una
   corrida de un motor de una de varios. El endpoint siempre pasa por él, incluso con un
