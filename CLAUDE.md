@@ -300,6 +300,32 @@ base de otro momento al lado de números de este.
   documento. Emular `GROUP BY` trayendo todo costaría 1.800.000 lecturas/día (36× sobre el
   cupo); una agregación por grupo cuesta 3.000. **600× de diferencia** — pero exige
   cardinalidad conocida y acotada, así que **no generaliza**.
+- **"Firestore indexa todo automáticamente" es verdad a medias, y la mitad que falta es
+  la que rompe.** Automático es el índice de **campo simple**, en las dos direcciones.
+  El **compuesto** —el que hace falta apenas la consulta combina campos, u ordena por uno
+  que no filtra— **no se crea nunca solo**. Medido en un proyecto nuevo con la base
+  vacía: **7 de las 10 consultas fallan** con `FAILED_PRECONDITION` hasta declararlos.
+  Las dos frases son ciertas a la vez, y por eso la distinción se pasa por alto.
+- **El requisito se decide al planificar, no al leer.** Una consulta contra una colección
+  **vacía** reclama el índice igual. De ahí que `scripts/check-query-indexes.mjs` pueda
+  descubrir la lista completa **sin sembrar y sin gastar un byte del cupo de escritura**.
+- **Firestore necesita MÁS índices que MongoDB para las mismas diez preguntas.** Mongo
+  sirve un orden descendente recorriendo un índice ascendente al revés, así que uno solo
+  cubre las dos direcciones; Firestore no puede, y además un `sum()`/`average()` filtrado
+  le exige el campo agregado **ASCENDENTE** aunque la consulta nunca ordene por él. Por
+  eso `IndexSpec` tiene `firestoreOnly`: construir esas copias en Mongo inflaría su
+  tamaño de índice para planes que jamás las usarían, y la comparación de almacenamiento
+  dejaría de ser honesta. **No borrar ese campo para "simplificar".**
+- **Los índices viven en el PROYECTO, no en el repositorio.** Cambiar de credenciales los
+  deja en cero. Por eso hay tres caminos al mismo declarado: `firestore.indexes.json`,
+  `scripts/firestore-indexes.mjs --list|--deploy`, y `GET|POST /api/indexes` con su botón
+  en la consola. Los tres leen `dataset/adapters/firestore-index-admin.ts`, así que no
+  pueden divergir.
+- **Crear índices exige `roles/datastore.indexAdmin`, que el service account de Firebase
+  NO trae por defecto.** Verificado en dos proyectos distintos: listar da 200, crear da
+  **403**. Ningún cambio de código lo arregla; es un rol de IAM. El botón lo dice en vez
+  de fallar con un 403 pelado, y el respaldo son los enlaces de consola que imprime
+  `check-query-indexes.mjs`.
 - **Firestore no puede crear índices compuestos desde el SDK — pero sí desde la API Admin
   REST.** El SDK no expone `createIndex`; `POST .../collectionGroups/{c}/indexes` sí. Por
   eso `scripts/firestore-indexes.mjs` tiene dos salidas desde la misma tabla: `--write`
@@ -337,7 +363,16 @@ node --experimental-strip-types --env-file=.env scripts/seed.mjs --scale=paired
 node --experimental-strip-types --env-file=.env scripts/seed.mjs --engine=firestore   # techo 19.000
 node --experimental-strip-types --env-file=.env scripts/seed.mjs --scale=demo         # 1M, solo Mongo
 node --experimental-strip-types scripts/firestore-indexes.mjs --write
+node --experimental-strip-types --env-file=.env scripts/firestore-indexes.mjs --list
 node --experimental-strip-types --env-file=.env scripts/firestore-indexes.mjs --deploy
+```
+
+Qué índices piden de verdad las diez consultas, motor por motor. Firestore lo dice al
+fallar (y lo dice con la base vacía); Mongo nunca lo dice, así que se mide con
+`$indexStats` antes y después:
+
+```bash
+node --experimental-strip-types --env-file=.env scripts/check-query-indexes.mjs
 ```
 
 Pruebas sensitivas — un parámetro a la vez, contra el mismo endpoint que maneja la

@@ -229,6 +229,42 @@ En Firestore **no aplica**, por tres razones distintas:
 3. **Los compuestos no se crean desde el SDK.** Se declaran y **se construyen en
    background**. No hay momento del cliente que cronometrar.
 
+> **Cuidado con leer el punto 2 de más.** "Firestore indexa todo automáticamente"
+> es verdad **solo para campos simples**. El índice **compuesto** —el que hace
+> falta apenas la consulta combina campos u ordena por uno que no filtra— **no se
+> crea nunca solo**. Medido sobre un proyecto nuevo con la base vacía: **7 de las
+> 10 consultas fallan** con `FAILED_PRECONDITION` hasta declararlos.
+
+### Dos hallazgos que solo aparecen al medirlo
+
+**El requisito se decide al planificar, no al leer.** Una consulta contra una
+colección **vacía** reclama el índice igual. Eso permite descubrir la lista
+completa **sin sembrar un solo documento y sin gastar cupo de escritura** — lo
+que, con 20.000 escrituras por día, no es un detalle menor.
+
+**Firestore necesita más índices que MongoDB para las mismas diez preguntas.**
+
+| | MongoDB | Firestore |
+|---|---:|---:|
+| Compuestos para las 10 consultas | 9 | **11** |
+| Índices totales declarados | 15 | 11 + los automáticos de campo simple |
+
+MongoDB sirve un orden descendente recorriendo un índice ascendente al revés, así
+que **uno cubre las dos direcciones**. Firestore no puede: necesita un compuesto
+por dirección, y además un `sum()`/`average()` filtrado le exige el campo agregado
+**ascendente** aunque la consulta nunca ordene por él. **Dos índices existen solo
+por eso**: `orders (customerId, total)` y `reviews (productId, rating ASC)`.
+
+Construir esas copias también en MongoDB habría sido "tratar igual a los dos
+motores", pero habría inflado su tamaño de índice con estructuras que su
+planificador no puede usar — y el KPI de eficiencia de almacenamiento habría
+mentido a favor de Firestore.
+
+**Y hay una asimetría más, operativa:** crear índices por API exige
+`roles/datastore.indexAdmin`, que el service account de Firebase **no trae por
+defecto**. Verificado en dos proyectos: listar responde 200, crear responde
+**403**. Es un permiso de IAM, no un problema de código.
+
 ### Tamaño de las bases
 
 **MongoDB — medido por API:**
