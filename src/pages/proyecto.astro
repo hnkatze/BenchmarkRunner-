@@ -105,7 +105,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
     </header>
 
     <main id="main">
-      <section class={`${shell} pt-12`}>
+      <section class={`${shell} reveal-on-scroll pt-12`}>
         <div class="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-end lg:gap-16">
           <h1 class="text-display-lg text-primary lg:text-display-mega">
             Cómo está hecho <span class="text-firestore">y qué mide de verdad</span>
@@ -125,7 +125,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
       </section>
 
       {/* The thesis. Everything below is evidence for this one claim. */}
-      <section class={`${shell} pt-16`}>
+      <section class={`${shell} reveal-on-scroll pt-16`}>
         <div class="grid gap-8 rounded-card bg-primary p-10 text-canvas lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-16 lg:p-14">
           <p class="flex items-start gap-3">
             <span class="mt-1 inline-flex shrink-0 text-firestore" set:html={icon('circle-alert', 'size-6')} />
@@ -147,7 +147,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
             <p class={kicker}>01 · Arquitectura</p>
             <h2 class={railHeading}>Un solo tipo sostiene todo</h2>
           </div>
-          <div class="grid gap-8">
+          <div class="reveal-on-scroll grid gap-8">
             <div class={`${measure} grid gap-5`}>
               <p class={lead}>
                 El dominio declara un puerto y nada más. La isla de interfaz conoce ese tipo y
@@ -177,7 +177,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
             <p class={kicker}>02 · Recorrido</p>
             <h2 class={railHeading}>Qué pasa al apretar ejecutar</h2>
           </div>
-          <div class="grid gap-8">
+          <div class="reveal-on-scroll grid gap-8">
             <p class={`${measure} ${lead}`}>
               La entrada de red se valida elemento por elemento antes de tocar nada. Después los
               motores corren uno detrás del otro, y cada muestra vuelve al navegador apenas se mide.
@@ -195,7 +195,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
             <p class={kicker}>03 · Método</p>
             <h2 class={railHeading}>Qué le pasa a cada muestra</h2>
           </div>
-          <div class="grid gap-8">
+          <div class="reveal-on-scroll grid gap-8">
             <p class={`${measure} ${lead}`}>
               El calentamiento existe porque abrir la conexión y llenar cachés cuesta, y ese costo
               se paga una sola vez. Si entrara en la medición, el primer valor arrastraría la media
@@ -218,7 +218,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
               silencioso: los números salían, se veían bien, y estaban mal.
             </p>
           </div>
-          <ol class="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
+          <ol class="reveal-on-scroll grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
             {
               DECISIONS.map((decision, index) => (
                 <li class={`${card} grid content-start gap-3`}>
@@ -243,7 +243,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
             </p>
           </div>
 
-          <div class="grid gap-8">
+          <div class="reveal-on-scroll grid gap-8">
             <div class="overflow-x-auto rounded-card bg-surface p-6 sm:p-10">
               <table class="w-full min-w-[44rem] border-collapse">
                 <caption class="sr-only">
@@ -335,7 +335,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
               cosas.
             </p>
           </div>
-          <dl class="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
+          <dl class="reveal-on-scroll grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
             {
               Object.entries(GLOSSARY).map(([id, entry]) => (
                 <div class={`${card} grid content-start gap-3`}>
@@ -357,7 +357,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
             <p class={kicker}>07 · Límites</p>
             <h2 class={railHeading}>Lo que no puede afirmar</h2>
           </div>
-          <ul class="grid gap-5 sm:grid-cols-2">
+          <ul class="reveal-on-scroll grid gap-5 sm:grid-cols-2">
             {
               LIMITS.map((limit) => (
                 <li class={`${card} flex items-start gap-4`}>
@@ -373,7 +373,7 @@ const card = 'rounded-card bg-surface p-8 sm:p-10'
         </div>
       </section>
 
-      <section class={`${shell} pt-20`}>
+      <section class={`${shell} reveal-on-scroll pt-20`}>
         <a href="/" class={`inline-flex items-center gap-2 ${ghostButton()}`}>
           <Fragment set:html={icon('play', 'size-4')} />
           Ejecutar una corrida
