@@ -44,3 +44,23 @@ export const solidButton = (size: ButtonSize = 'md'): string =>
  */
 export const ghostButton = (size: ButtonSize = 'md'): string =>
   `${GHOST_BASE} ${PADDING[size]}`
+
+/* A segmented control, not a row of buttons: the options are mutually exclusive
+   views of the same data, and a shared inset track says so before the labels do.
+   Both states are complete literal strings — Tailwind's scanner reads source
+   text, so a class assembled by interpolation at runtime is never generated. */
+const SEGMENT_BASE =
+  `rounded-button px-4 py-1.5 text-button font-medium transition-colors ${FOCUS_RING}`
+
+/**
+ * One option of a segmented control.
+ * @param active - whether this option is the one currently shown
+ * @returns the full class string
+ */
+export const segmentButton = (active: boolean): string =>
+  active
+    ? `${SEGMENT_BASE} bg-surface text-primary shadow-none`
+    : `${SEGMENT_BASE} bg-transparent text-muted hover:text-primary`
+
+/** The track the segments sit in. */
+export const segmentTrack = 'inline-flex gap-1 rounded-button bg-inset p-1'

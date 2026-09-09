@@ -17,7 +17,7 @@ export { compareByOperation, throughputOpsPerSecond } from './benchmark-report'
 export type { BenchmarkReport, OperationComparison, OperationResult } from './benchmark-report'
 
 export { IDLE_STATE, RUN_EVENT_TYPES, isRunEventType, reduceRunState } from './run-event'
-export type { RunEvent, RunState } from './run-event'
+export type { RunEvent, RunState, SamplePoint } from './run-event'
 
 export type { BenchmarkRunner } from './benchmark-runner'
 

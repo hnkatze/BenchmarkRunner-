@@ -1,10 +1,10 @@
 ---
 import { CONFIG_LIMITS, DEFAULT_CONFIG, ENGINE_IDS, OPERATION_IDS } from '../domain'
 import { QUERY_SPECS, queriesOfKind } from '../../dataset/domain/queries.ts'
-import { ghostButton, solidButton } from '../../ui/button-recipes'
+import { ghostButton, segmentButton, segmentTrack, solidButton } from '../../ui/button-recipes'
 import Checkbox from '../../ui/Checkbox.astro'
 import { icon } from '../../ui/icons'
-import { GLOSSARY, INDEX_COPY, type GlossaryTermId } from './copy'
+import { COPY, GLOSSARY, INDEX_COPY, type GlossaryTermId } from './copy'
 import { infoTip } from '../../ui/info-tip'
 import { ENGINE_DISPLAY, PHASE_DISPLAY, firestoreStrategyLabel } from './labels'
 
@@ -58,15 +58,63 @@ const numericFields = [
 ] as const
 ---
 
-<benchmark-console class="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)] lg:items-start">
-  {/* Two rows: the fields scroll, the action does not. A sticky footer INSIDE the
-      scroll area would float over the fields it is meant to sit below. */}
+{/* Two steps, not two columns. The parameters used to hold 24rem for the whole
+    session, which is exactly the width the table and the chart want back once
+    there is data to read. The control bar stays outside both steps so a rerun
+    never costs a trip back to the form. */}
+<benchmark-console class="grid gap-8">
+  <div
+    class="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-card bg-surface px-8 py-5"
+  >
+    <div class={segmentTrack} role="tablist" aria-label="Pasos">
+      <button
+        type="button"
+        data-ref="step-tab"
+        data-step="setup"
+        role="tab"
+        aria-selected="true"
+        class={segmentButton(true)}
+      >
+        {COPY.steps.configure}
+      </button>
+      <button
+        type="button"
+        data-ref="step-tab"
+        data-step="analysis"
+        role="tab"
+        aria-selected="false"
+        class={segmentButton(false)}
+      >
+        {COPY.steps.analyze}
+      </button>
+    </div>
+
+    {/* What is about to run, in one line, so the analysis step never has to
+        guess which configuration produced the numbers on screen. */}
+    <p data-ref="summary" class="font-mono text-caption tnum text-muted"></p>
+
+    <div class="flex flex-wrap gap-2.5">
+      {/* Associated by id, not by nesting: the button lives outside the form so
+          it survives the step switch. */}
+      <button type="submit" form="benchmark-form" data-ref="run" class={solidButton()}>
+        <span class="flex items-center justify-center gap-2">
+          <span data-ref="run-icon" class="inline-flex" set:html={icon('play', 'size-4')} />
+          <span data-ref="run-label">Ejecutar benchmark</span>
+        </span>
+      </button>
+      <button type="button" data-ref="cancel" hidden class={ghostButton()}>
+        Cancelar
+      </button>
+    </div>
+  </div>
+
   <form
+    id="benchmark-form"
     data-ref="form"
-    class="grid overflow-hidden rounded-card bg-surface lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:grid-rows-[minmax(0,1fr)_auto]"
+    class="rounded-card bg-surface p-10"
     novalidate
   >
-   <div class="grid gap-8 overflow-y-auto p-10">
+   <div class="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
     <fieldset class="grid gap-2.5">
       <legend class={`${legendText} mb-2.5`}>Motores</legend>
       {
@@ -214,28 +262,18 @@ const numericFields = [
       }
     </fieldset>
 
+   </div>
+
     <ul
       data-ref="errors"
       hidden
-      class="grid gap-1 rounded-card bg-primary p-6 text-body-sm text-canvas"
+      class="mt-10 grid gap-1 rounded-card bg-primary p-6 text-body-sm text-canvas"
     >
     </ul>
-   </div>
 
-    <div class="flex flex-wrap gap-2.5 border-t border-hairline bg-surface px-10 py-6">
-      <button type="submit" data-ref="run" class={`flex-1 ${solidButton()}`}>
-        <span class="flex items-center justify-center gap-2">
-          <span data-ref="run-icon" class="inline-flex" set:html={icon('play', 'size-4')} />
-          <span data-ref="run-label">Ejecutar benchmark</span>
-        </span>
-      </button>
-      <button type="button" data-ref="cancel" hidden class={ghostButton()}>
-        Cancelar
-      </button>
-    </div>
   </form>
 
-  <div class="grid gap-10">
+  <div data-ref="step-analysis" hidden class="grid gap-10">
     <section class={panel} aria-labelledby="progress-heading">
       <div class="flex items-baseline justify-between gap-4">
         <h2 id="progress-heading" class={legendText}>Progreso de la ejecución</h2>
@@ -265,11 +303,63 @@ const numericFields = [
     </section>
 
     <section class={panel} aria-labelledby="chart-heading">
-      <h2 id="chart-heading" class={`${legendText} flex items-center gap-2`}>
-        <Fragment set:html={icon('chart-bar', 'size-4')} />
-        Comparación de latencia p95
-        <Fragment set:html={tip('p95')} />
-      </h2>
+      <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+        <h2 id="chart-heading" class={`${legendText} flex items-center gap-2`}>
+          <Fragment set:html={icon('chart-bar', 'size-4')} />
+          <span data-ref="chart-heading-label">Latencia p95</span>
+          <Fragment set:html={tip('p95')} />
+        </h2>
+
+        <div class="flex flex-wrap items-center gap-3">
+          {/* Three views, never one plot with two axes: latency and throughput
+              move in opposite directions as concurrency rises, so sharing a
+              frame would invite exactly the comparison the numbers forbid. */}
+          <div class={segmentTrack} role="tablist" aria-label="Vista del gráfico">
+            <button
+              type="button"
+              data-ref="chart-tab"
+              data-chart="p95"
+              role="tab"
+              aria-selected="true"
+              class={segmentButton(true)}
+            >
+              {COPY.charts.p95}
+            </button>
+            <button
+              type="button"
+              data-ref="chart-tab"
+              data-chart="samples"
+              role="tab"
+              aria-selected="false"
+              class={segmentButton(false)}
+            >
+              {COPY.charts.samples}
+            </button>
+            <button
+              type="button"
+              data-ref="chart-tab"
+              data-chart="throughput"
+              role="tab"
+              aria-selected="false"
+              class={segmentButton(false)}
+            >
+              {COPY.charts.throughput}
+            </button>
+          </div>
+
+          {/* Only the sample view needs one phase at a time; the other two show
+              every phase at once. */}
+          <label data-ref="phase-picker" hidden class="flex items-center gap-2">
+            <span class="text-caption text-muted">{COPY.charts.phaseLabel}</span>
+            <select
+              data-ref="phase-select"
+              class="rounded-input border border-hairline bg-canvas px-4 py-2 text-body-sm text-primary outline-none focus-visible:border-hairline-strong"
+            >
+            </select>
+          </label>
+        </div>
+      </div>
+
       <div data-ref="chart" class="pt-6"></div>
     </section>
 

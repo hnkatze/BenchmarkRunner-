@@ -1,6 +1,7 @@
 import {
   DEFAULT_CONFIG,
   IDLE_STATE,
+  isPhaseId,
   isEngineId,
   isOperationId,
   reduceRunState,
@@ -10,7 +11,9 @@ import {
   type EngineId,
   type OperationId,
   type OperationResult,
+  type PhaseId,
   type RunState,
+  type SamplePoint,
 } from '../domain'
 import { isQueryId, type QueryId } from '../../dataset/domain/queries.ts'
 import { icon } from '../../ui/icons'
@@ -20,11 +23,21 @@ import {
   finishedStatus,
   phaseFailureNotice,
   runningStatus,
+  runSummary,
   sampleFailureNotice,
   violationMessage,
 } from './copy'
-import { renderChart } from './render-chart'
+import { renderChart, type BarMeasure } from './render-chart'
 import { renderResults } from './render-results'
+import { renderSamplesChart } from './render-samples-chart'
+import { PHASE_DISPLAY } from './labels'
+import { segmentButton } from '../../ui/button-recipes'
+
+/** The two halves of the session: choose the run, then read it. */
+type Step = 'setup' | 'analysis'
+
+/** Three questions, three plots. They never share an axis. */
+type ChartView = BarMeasure | 'samples'
 
 const readNumber = (form: HTMLFormElement, name: string, fallback: number): number => {
   const field = form.elements.namedItem(name)
@@ -45,6 +58,14 @@ const readChecked = <TValue extends string>(
 export class BenchmarkConsole extends HTMLElement {
   #state: RunState = IDLE_STATE
   #violations: readonly string[] = []
+  /** Which step is on screen. The parameters stop costing width once there is data. */
+  #step: Step = 'setup'
+  #chartView: ChartView = 'p95'
+  #phase: PhaseId | null = null
+  /** Rebuild the phase options only when the set changes, not on every sample. */
+  #phaseOptions = ''
+  /** What actually ran, for the summary line. Reading the form would drift. */
+  #lastConfig: BenchmarkConfig | null = null
   #controller: AbortController | null = null
   #runner: BenchmarkRunner | null = null
 
@@ -62,6 +83,11 @@ export class BenchmarkConsole extends HTMLElement {
   #errorHost: HTMLElement | null = null
   #resizeObserver: ResizeObserver | null = null
   #lastChartWidth = 0
+  #stepAnalysis: HTMLElement | null = null
+  #summaryHost: HTMLElement | null = null
+  #chartHeading: HTMLElement | null = null
+  #phasePicker: HTMLElement | null = null
+  #phaseSelect: HTMLSelectElement | null = null
 
   connectedCallback(): void {
     this.#form = this.querySelector<HTMLFormElement>('[data-ref="form"]')
@@ -76,6 +102,34 @@ export class BenchmarkConsole extends HTMLElement {
     this.#resultsHost = this.querySelector<HTMLElement>('[data-ref="results"]')
     this.#chartHost = this.querySelector<HTMLElement>('[data-ref="chart"]')
     this.#errorHost = this.querySelector<HTMLElement>('[data-ref="errors"]')
+    this.#stepAnalysis = this.querySelector<HTMLElement>('[data-ref="step-analysis"]')
+    this.#summaryHost = this.querySelector<HTMLElement>('[data-ref="summary"]')
+    this.#chartHeading = this.querySelector<HTMLElement>('[data-ref="chart-heading-label"]')
+    this.#phasePicker = this.querySelector<HTMLElement>('[data-ref="phase-picker"]')
+    this.#phaseSelect = this.querySelector<HTMLSelectElement>('[data-ref="phase-select"]')
+
+    for (const tab of this.querySelectorAll<HTMLButtonElement>('[data-ref="step-tab"]')) {
+      tab.addEventListener('click', () => {
+        this.#step = tab.dataset.step === 'analysis' ? 'analysis' : 'setup'
+        this.#render()
+      })
+    }
+
+    for (const tab of this.querySelectorAll<HTMLButtonElement>('[data-ref="chart-tab"]')) {
+      tab.addEventListener('click', () => {
+        const view = tab.dataset.chart
+        if (view === 'p95' || view === 'samples' || view === 'throughput') {
+          this.#chartView = view
+          this.#render()
+        }
+      })
+    }
+
+    this.#phaseSelect?.addEventListener('change', () => {
+      const chosen = this.#phaseSelect?.value
+      this.#phase = chosen !== undefined && isPhaseId(chosen) ? chosen : null
+      this.#render()
+    })
 
     this.#form?.addEventListener('submit', this.#onSubmit)
     this.#cancelButton?.addEventListener('click', this.#onCancel)
@@ -159,13 +213,19 @@ export class BenchmarkConsole extends HTMLElement {
     }
 
     this.#showViolations([])
+    this.#lastConfig = config
+    // Straight to the results: the parameters have said everything they had to.
+    this.#step = 'analysis'
     void this.#run(this.#runner, config)
   }
 
   #onCancel = (): void => {
     this.#controller?.abort()
+    // Cancelling keeps what was already measured, samples included: the charts
+    // are the reason someone cancels a run that is clearly going wrong.
     const results = this.#state.status === 'running' ? this.#state.results : []
-    this.#state = { status: 'cancelled', results }
+    const samples = this.#currentSamples()
+    this.#state = { status: 'cancelled', results, samples }
     this.#render()
   }
 
@@ -238,6 +298,61 @@ export class BenchmarkConsole extends HTMLElement {
     }
   }
 
+  #currentSamples(): readonly SamplePoint[] {
+    switch (this.#state.status) {
+      case 'running':
+      case 'cancelled':
+      case 'completed':
+        return this.#state.samples
+      default:
+        return []
+    }
+  }
+
+  /** Which configuration produced what is on screen. */
+  #summaryText(): string {
+    const config = this.#lastConfig ?? this.#readConfig()
+    return runSummary(
+      config.engines.length,
+      config.operations.length + config.queries.length,
+      config.iterations,
+    )
+  }
+
+  /**
+   * Keeps the phase picker in step with the phases that actually have samples,
+   * rebuilding the options only when that set changes — a sample event arrives
+   * hundreds of times per run, and replacing the options on each one would fight
+   * the user for the select.
+   */
+  #syncPhases(samples: readonly SamplePoint[]): void {
+    const phases: PhaseId[] = []
+    for (const sample of samples) {
+      if (!phases.includes(sample.operation)) phases.push(sample.operation)
+    }
+
+    if (this.#phase === null || !phases.includes(this.#phase)) {
+      this.#phase = phases[0] ?? null
+    }
+
+    const select = this.#phaseSelect
+    if (select === null) return
+
+    const key = phases.join('|')
+    if (key !== this.#phaseOptions) {
+      this.#phaseOptions = key
+      select.textContent = ''
+      for (const phase of phases) {
+        const option = document.createElement('option')
+        option.value = phase
+        option.textContent = PHASE_DISPLAY[phase].label
+        select.append(option)
+      }
+    }
+
+    if (this.#phase !== null) select.value = this.#phase
+  }
+
   #statusText(): string {
     switch (this.#state.status) {
       case 'idle':
@@ -304,13 +419,47 @@ export class BenchmarkConsole extends HTMLElement {
     if (this.#statusRegion !== null) this.#statusRegion.textContent = this.#statusText()
 
     this.#renderNotices()
+    this.#renderSteps()
 
     const results = this.#currentResults()
     if (this.#resultsHost !== null) renderResults(this.#resultsHost, results)
+
+    const samples = this.#currentSamples()
+    this.#syncPhases(samples)
+
+    if (this.#phasePicker !== null) this.#phasePicker.hidden = this.#chartView !== 'samples'
+    if (this.#chartHeading !== null) {
+      this.#chartHeading.textContent = COPY.charts[this.#chartView]
+    }
+
     if (this.#chartHost !== null) {
       this.#lastChartWidth = this.#chartWidth()
-      renderChart(this.#chartHost, results, this.#lastChartWidth)
+      if (this.#chartView === 'samples') {
+        renderSamplesChart(this.#chartHost, samples, this.#phase, this.#lastChartWidth)
+      } else {
+        renderChart(this.#chartHost, results, this.#lastChartWidth, this.#chartView)
+      }
     }
+  }
+
+  /** Which step is visible, which tabs read as selected, and the summary line. */
+  #renderSteps(): void {
+    if (this.#form !== null) this.#form.hidden = this.#step !== 'setup'
+    if (this.#stepAnalysis !== null) this.#stepAnalysis.hidden = this.#step !== 'analysis'
+
+    for (const tab of this.querySelectorAll<HTMLButtonElement>('[data-ref="step-tab"]')) {
+      const active = tab.dataset.step === this.#step
+      tab.className = segmentButton(active)
+      tab.setAttribute('aria-selected', String(active))
+    }
+
+    for (const tab of this.querySelectorAll<HTMLButtonElement>('[data-ref="chart-tab"]')) {
+      const active = tab.dataset.chart === this.#chartView
+      tab.className = segmentButton(active)
+      tab.setAttribute('aria-selected', String(active))
+    }
+
+    if (this.#summaryHost !== null) this.#summaryHost.textContent = this.#summaryText()
   }
 }
 

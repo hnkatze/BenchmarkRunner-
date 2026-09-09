@@ -59,6 +59,27 @@ export const COPY = {
   chart: {
     empty: 'La comparación p95 aparece aquí cuando termine la primera fase.',
     caption: 'Latencia p95, escala logarítmica. Más corto es mejor.',
+    captionLinear: 'Latencia p95, escala lineal desde cero. Más corto es mejor.',
+    throughputCaption:
+      'Operaciones por segundo, del reloj de pared de la fase. Más largo es mejor.',
+    samplesEmpty: 'Elegí una fase con muestras para ver su latencia una por una.',
+    samplesLabel: 'Latencia por muestra y motor a lo largo de las iteraciones',
+    samplesCaption: (phase: string): string =>
+      `Latencia muestra a muestra en ${phase}, escala lineal. Un p95 no distingue una fase pareja de una con un pico.`,
+  },
+  /* Las tres preguntas que los datos contestan, y que NO comparten eje: latencia
+     y rendimiento se mueven en direcciones opuestas al subir la concurrencia. */
+  charts: {
+    p95: 'Latencia p95',
+    samples: 'Muestra a muestra',
+    throughput: 'Rendimiento',
+    phaseLabel: 'Fase',
+  },
+  steps: {
+    configure: 'Configurar',
+    analyze: 'Resultados',
+    edit: 'Cambiar parámetros',
+    back: 'Volver a los resultados',
   },
 } as const
 
@@ -117,6 +138,10 @@ export const INDEX_STATE_LABEL = {
   denied: 'sin permiso',
   error: 'error',
 } as const
+
+/** The configuration that produced what is on screen, in one line. */
+export const runSummary = (engines: number, phases: number, iterations: number): string =>
+  `${engines} ${engines === 1 ? 'motor' : 'motores'} · ${phases} ${phases === 1 ? 'fase' : 'fases'} · ${iterations} iteraciones`
 
 export const indexSummary = (ready: number, total: number, missing: number): string =>
   missing === 0

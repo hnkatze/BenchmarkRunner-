@@ -69,6 +69,20 @@ void _allEventTypesListed
 export const isRunEventType = (value: unknown): value is RunEvent['type'] =>
   typeof value === 'string' && (RUN_EVENT_TYPES as readonly string[]).includes(value)
 
+/**
+ * One measured sample, kept rather than only counted.
+ *
+ * The per-phase percentiles answer "how fast"; only the sequence answers "was it
+ * steady" — a warm-up ramp, a drift, or one 800 ms spike among 50 ms samples all
+ * vanish into a p95 and are obvious in a line.
+ */
+export type SamplePoint = {
+  readonly engine: EngineId
+  readonly operation: PhaseId
+  readonly index: number
+  readonly durationMs: number
+}
+
 export type RunState =
   | { readonly status: 'idle' }
   | {
@@ -106,10 +120,20 @@ export type RunState =
         readonly operation: PhaseId
         readonly reason: string
       }[]
+      readonly samples: readonly SamplePoint[]
     }
-  | { readonly status: 'completed'; readonly report: BenchmarkReport }
+  | {
+      readonly status: 'completed'
+      readonly report: BenchmarkReport
+      /** Carried past the end of the run: the chart outlives the stream. */
+      readonly samples: readonly SamplePoint[]
+    }
   | { readonly status: 'failed'; readonly message: string }
-  | { readonly status: 'cancelled'; readonly results: readonly OperationResult[] }
+  | {
+      readonly status: 'cancelled'
+      readonly results: readonly OperationResult[]
+      readonly samples: readonly SamplePoint[]
+    }
 
 export const IDLE_STATE: RunState = { status: 'idle' }
 
@@ -137,6 +161,7 @@ export const reduceRunState = (state: RunState, event: RunEvent): RunState => {
         current: null,
         lastFailure: null,
         failedPhases: [],
+        samples: [],
       }
 
     case 'phase-started':
@@ -158,6 +183,15 @@ export const reduceRunState = (state: RunState, event: RunEvent): RunState => {
             ...state,
             completedSamples: state.completedSamples + 1,
             current: countSample(state.current),
+            samples: [
+              ...state.samples,
+              {
+                engine: event.engine,
+                operation: event.operation,
+                index: event.index,
+                durationMs: event.durationMs,
+              },
+            ],
           }
         : state
 
@@ -195,7 +229,11 @@ export const reduceRunState = (state: RunState, event: RunEvent): RunState => {
     }
 
     case 'run-completed':
-      return { status: 'completed', report: event.report }
+      return {
+        status: 'completed',
+        report: event.report,
+        samples: state.status === 'running' ? state.samples : [],
+      }
 
     case 'run-failed':
       return { status: 'failed', message: event.message }
