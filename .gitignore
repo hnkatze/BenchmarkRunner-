@@ -39,3 +39,6 @@ AGENTS.md
 
 # seeder progress — describes one machine's database, never the repo's
 .seed-state.*.json
+
+# Local CodeGraph index
+.codegraph/
