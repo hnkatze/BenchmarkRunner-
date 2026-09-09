@@ -1,7 +1,7 @@
 import type { Db } from 'mongodb'
 import { COLLECTION_IDS, type CollectionId } from '../domain/collections.ts'
 import { documentsFor } from '../domain/documents.ts'
-import { INDEXES } from '../domain/indexes.ts'
+import { INDEXES, type IndexSpec } from '../domain/indexes.ts'
 import type {
   CollectionSeedResult,
   DatasetSeeder,
@@ -25,6 +25,45 @@ import type {
  */
 
 const nowMs = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+
+/** IndexOptionsConflict and IndexKeySpecsConflict. */
+const INDEX_CONFLICT = new Set([85, 86])
+
+const errorCode = (error: unknown): number | null =>
+  typeof error === 'object' &&
+  error !== null &&
+  typeof (error as { code?: unknown }).code === 'number'
+    ? (error as { code: number }).code
+    : null
+
+/**
+ * Creates an index, rebuilding it when an earlier run left the same NAME with
+ * different keys.
+ *
+ * MongoDB refuses to reuse a name whose key spec moved, so without this a
+ * changed direction in the declaration would break every later seed with
+ * IndexKeySpecsConflict — and the failure would arrive halfway through a
+ * seeding run, not at the moment the declaration changed. The repository is
+ * the source of truth, not whatever an older run happened to build.
+ *
+ * @param db - the target database
+ * @param collection - where the index lives
+ * @param spec - the declared index
+ */
+const createOrRebuild = async (
+  db: Db,
+  collection: CollectionId,
+  spec: IndexSpec,
+): Promise<void> => {
+  try {
+    await db.collection(collection).createIndex(spec.keys, { name: spec.name })
+  } catch (error) {
+    const code = errorCode(error)
+    if (code === null || !INDEX_CONFLICT.has(code)) throw error
+    await db.collection(collection).dropIndex(spec.name)
+    await db.collection(collection).createIndex(spec.keys, { name: spec.name })
+  }
+}
 
 /** Runs `tasks` with at most `limit` in flight, preserving no order. */
 const pooled = async (
@@ -136,9 +175,11 @@ export const createMongoSeeder = (db: Db): DatasetSeeder => ({
     // number and deflates the indexing one — the brief asks for both.
     if (!plan.skipIndexes && !signal.aborted) {
       for (const collection of COLLECTION_IDS) {
-        for (const spec of INDEXES[collection]) {
+        // firestoreOnly specs are skipped: MongoDB's planner can never use
+        // them, and building them would inflate its index size for nothing.
+        for (const spec of INDEXES[collection].filter((s) => s.firestoreOnly !== true)) {
           const at = nowMs()
-          await db.collection(collection).createIndex(spec.keys, { name: spec.name })
+          await createOrRebuild(db, collection, spec)
           const entry = { collection, name: spec.name, wallClockMs: nowMs() - at }
           indexes.push(entry)
           yield { type: 'index-created', ...entry }

@@ -23,7 +23,7 @@ import { cert, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { PAIRED_SCALE, SCALE_DEMO, totalDocuments } from '../src/dataset/domain/generate.ts'
 import { COLLECTION_IDS } from '../src/dataset/domain/collections.ts'
-import { allIndexes } from '../src/dataset/domain/indexes.ts'
+import { indexesForEngine } from '../src/dataset/domain/indexes.ts'
 import { seedThroughput } from '../src/dataset/domain/seed-port.ts'
 import { createMongoSeeder } from '../src/dataset/adapters/mongo-seeder.ts'
 import { createFirestoreSeeder } from '../src/dataset/adapters/firestore-seeder.ts'
@@ -89,7 +89,7 @@ console.log(
       ? 'no aplica — ver scripts/firestore-indexes.mjs'
       : flag('skip-indexes')
         ? 'omitidos'
-        : allIndexes().length + ' declarados'
+        : indexesForEngine('mongodb').length + ' declarados'
   }`,
 )
 
