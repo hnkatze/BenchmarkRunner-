@@ -21,8 +21,10 @@ const SOLID_BASE =
 const GHOST_BASE =
   `rounded-button border border-hairline-strong bg-surface font-medium text-primary transition-colors hover:bg-raised disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`
 
-/** The reference specifies 10/18 at 40px tall, and 12/20 for the ink fill. */
+/** The reference specifies 10/18 at 40px tall, and 12/20 for the ink fill.
+ * `xs` is for secondary actions inside a panel, never the primary call to action. */
 const PADDING = {
+  xs: 'px-3 py-1.5 text-caption',
   sm: 'px-4 py-2 text-button',
   md: 'px-5 py-2.5 text-button',
 } as const

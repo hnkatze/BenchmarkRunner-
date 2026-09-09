@@ -8,15 +8,15 @@ import { COPY, GLOSSARY, INDEX_COPY, type GlossaryTermId } from './copy'
 import { infoTip } from '../../ui/info-tip'
 import { ENGINE_DISPLAY, PHASE_DISPLAY, firestoreStrategyLabel } from './labels'
 
-/* Caldera cards: Ash White, 40px radius, 40px padding. The padding applies to
-   the container — never to a table row, which would make the data unreadable. */
-const panel = 'rounded-card bg-surface p-10'
+/* DESIGN.md fija el padding de tarjeta en 24px. El 40px anterior venía de
+   Caldera y sobrevivió a la migración a Cursor sin justificación en la Parte 2. */
+const panel = 'rounded-card bg-surface p-6'
 const legendText = 'text-caption-uppercase font-semibold text-muted'
 
-/* Pill inputs, 100px radius. Focus inverts the border to full ink rather than
-   adding a glow: the system is flat and has no shadows. */
+/* El foco invierte el borde a tinta plena en vez de agregar un glow: el sistema
+   es plano y no tiene sombras. */
 const numberField =
-  'w-full rounded-input border border-hairline bg-canvas px-6 py-3 font-mono text-body-sm text-primary tnum outline-none focus-visible:border-hairline-strong focus-visible:ring-2 focus-visible:ring-primary/20'
+  'w-full rounded-input border border-hairline bg-canvas px-3 py-2 font-mono text-body-sm text-primary tnum outline-none focus-visible:border-hairline-strong focus-visible:ring-2 focus-visible:ring-primary/20'
 
 /** Scoped ids: the same term also appears in the results table. */
 const tip = (term: GlossaryTermId): string =>
@@ -63,8 +63,10 @@ const numericFields = [
     there is data to read. The control bar stays outside both steps so a rerun
     never costs a trip back to the form. */}
 <benchmark-console class="grid gap-8">
+  {/* Chrome, not a content card: the 24px rule governs what holds content, and a
+      toolbar that tall pushes the step it labels below the fold. */}
   <div
-    class="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-card bg-surface px-8 py-5"
+    class="animate-rise delay-150 flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-card bg-surface px-6 py-4"
   >
     <div class={segmentTrack} role="tablist" aria-label="Pasos">
       <button
@@ -111,38 +113,76 @@ const numericFields = [
   <form
     id="benchmark-form"
     data-ref="form"
-    class="rounded-card bg-surface p-10"
+    class="animate-rise delay-200 rounded-card bg-surface p-6"
     novalidate
   >
-   <div class="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
-    <fieldset class="grid gap-2.5">
-      <legend class={`${legendText} mb-2.5`}>Motores</legend>
-      {
-        ENGINE_IDS.map((engine) => (
-          <label class="flex cursor-pointer items-center gap-4 rounded-input border border-hairline bg-canvas px-5 py-4 transition-colors has-checked:border-hairline-strong">
-            <Checkbox name="engine" value={engine} checked />
-            <span class="grid gap-0.5">
-              <span class="flex items-center gap-2 text-body-sm font-medium text-primary">
-                {/* The mark carries the engine's colour, so no separate dot is needed. */}
-                <span
-                  class="inline-flex"
-                  style={`color: var(${ENGINE_DISPLAY[engine].colorVar})`}
-                  set:html={icon(ENGINE_DISPLAY[engine].icon, 'size-5')}
-                />
-                {ENGINE_DISPLAY[engine].label}
+   <div class="grid gap-x-8 gap-y-7 md:grid-cols-2 xl:grid-cols-3">
+    {/* Motores ocupa la fila entera en `md` y los dos chips se reparten su ancho:
+        con una sola columna, las seis celdas dejaban un hueco visible al lado de
+        "Consultas complejas" en todo el rango md–xl. */}
+    <fieldset class="grid content-start gap-2 md:col-span-2 xl:col-span-1">
+      <legend class={`${legendText} mb-1`}>Motores</legend>
+      <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-1">
+        {
+          ENGINE_IDS.map((engine) => (
+            <label class="flex cursor-pointer items-center gap-3 rounded-input border border-hairline bg-canvas px-3 py-2 transition-colors has-checked:border-hairline-strong">
+              <Checkbox name="engine" value={engine} checked />
+              <span class="grid gap-0.5">
+                <span class="flex items-center gap-2 text-body-sm font-medium text-primary">
+                  {/* The mark carries the engine's colour, so no separate dot is needed. */}
+                  <span
+                    class="inline-flex"
+                    style={`color: var(${ENGINE_DISPLAY[engine].colorVar})`}
+                    set:html={icon(ENGINE_DISPLAY[engine].icon, 'size-5')}
+                  />
+                  {ENGINE_DISPLAY[engine].label}
+                </span>
+                <span class="text-caption text-muted">{ENGINE_DISPLAY[engine].tagline}</span>
               </span>
-              <span class="text-xs text-muted">{ENGINE_DISPLAY[engine].tagline}</span>
-            </span>
-          </label>
-        ))
-      }
+            </label>
+          ))
+        }
+      </div>
     </fieldset>
 
-    <fieldset class="grid gap-1">
-      <legend class={`${legendText} mb-2.5`}>Operaciones</legend>
+    <fieldset class="grid content-start gap-2 xl:col-span-2">
+      <legend class={`${legendText} mb-1`}>Carga de trabajo</legend>
+      <div class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+        {
+          numericFields.map((field) => (
+            <div class="grid gap-1.5">
+              <div class="flex items-center gap-1.5">
+                <label for={`field-${field.name}`} class="text-body-sm font-medium text-secondary">
+                  {field.label}
+                </label>
+                <Fragment set:html={tip(field.term)} />
+              </div>
+              <input
+                id={`field-${field.name}`}
+                name={field.name}
+                type="number"
+                inputmode="numeric"
+                value={field.value}
+                min={field.limits.min}
+                max={field.limits.max}
+                step="1"
+                aria-describedby={`hint-${field.name}`}
+                class={numberField}
+              />
+              <span id={`hint-${field.name}`} class="text-caption text-muted">
+                {field.hint}
+              </span>
+            </div>
+          ))
+        }
+      </div>
+    </fieldset>
+
+    <fieldset class="grid content-start gap-0.5">
+      <legend class={`${legendText} mb-1`}>Operaciones</legend>
       {
         OPERATION_IDS.map((operation) => (
-          <label class="flex cursor-pointer items-center gap-4 rounded-input px-4 py-2.5 transition-colors hover:bg-raised">
+          <label class="flex cursor-pointer items-center gap-3 rounded-input px-3 py-2 transition-colors hover:bg-raised">
             <Checkbox
               name="operation"
               value={operation}
@@ -154,18 +194,18 @@ const numericFields = [
             />
             <span class="grid gap-0.5">
               <span class="text-body-sm text-primary">{PHASE_DISPLAY[operation].label}</span>
-              <span class="text-xs text-muted">{PHASE_DISPLAY[operation].description}</span>
+              <span class="text-caption text-muted">{PHASE_DISPLAY[operation].description}</span>
             </span>
           </label>
         ))
       }
     </fieldset>
 
-    <fieldset class="grid gap-1">
-      <legend class={`${legendText} mb-2.5`}>Consultas simples</legend>
+    <fieldset class="grid content-start gap-0.5">
+      <legend class={`${legendText} mb-1`}>Consultas simples</legend>
       {
         queriesOfKind('simple').map((query) => (
-          <label class="flex cursor-pointer items-start gap-4 rounded-input px-4 py-2.5 transition-colors hover:bg-raised">
+          <label class="flex cursor-pointer items-start gap-3 rounded-input px-3 py-2 transition-colors hover:bg-raised">
             <Checkbox name="query" value={query} />
             <span
               class="mt-0.5 inline-flex shrink-0 text-secondary"
@@ -180,11 +220,11 @@ const numericFields = [
       }
     </fieldset>
 
-    <fieldset class="grid gap-1">
-      <legend class={`${legendText} mb-2.5`}>Consultas complejas</legend>
+    <fieldset class="grid content-start gap-0.5">
+      <legend class={`${legendText} mb-1`}>Consultas complejas</legend>
       {
         queriesOfKind('complex').map((query) => (
-          <label class="flex cursor-pointer items-start gap-4 rounded-input px-4 py-2.5 transition-colors hover:bg-raised">
+          <label class="flex cursor-pointer items-start gap-3 rounded-input px-3 py-2 transition-colors hover:bg-raised">
             <Checkbox name="query" value={query} />
             <span
               class="mt-0.5 inline-flex shrink-0 text-secondary"
@@ -206,74 +246,50 @@ const numericFields = [
     {/* Los índices viven en el proyecto, no en el repositorio: apuntar la app a
         otro proyecto los deja en cero y siete consultas fallan. Revisar es
         gratis y sin permisos especiales; crear necesita un rol de IAM. */}
-    <div class="grid gap-2.5" data-ref="index-panel">
-      <span class={`${legendText} mb-2.5`}>{INDEX_COPY.title}</span>
-      <p class="px-2 text-caption text-muted">{INDEX_COPY.explainer}</p>
-      <p
-        data-ref="index-status"
-        class="rounded-input border border-hairline bg-canvas px-5 py-4 text-body-sm text-secondary"
-      >
-        {INDEX_COPY.idle}
-      </p>
-      <div class="flex flex-wrap gap-2.5">
-        <button type="button" data-ref="index-check" class={ghostButton('sm')}>
-          {INDEX_COPY.check}
-        </button>
-        <button type="button" data-ref="index-create" class={ghostButton('sm')}>
-          {INDEX_COPY.create}
-        </button>
+    <div
+      class="grid gap-3 rounded-input bg-inset p-4 md:col-span-2 xl:col-span-3"
+      data-ref="index-panel"
+    >
+      <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <span class={legendText}>{INDEX_COPY.title}</span>
+        <p class="max-w-[70ch] text-caption text-muted">{INDEX_COPY.explainer}</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <p
+          data-ref="index-status"
+          class="min-w-0 flex-1 text-body-sm text-secondary"
+        >
+          {INDEX_COPY.idle}
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" data-ref="index-check" class={ghostButton('xs')}>
+            {INDEX_COPY.check}
+          </button>
+          <button type="button" data-ref="index-create" class={ghostButton('xs')}>
+            {INDEX_COPY.create}
+          </button>
+        </div>
       </div>
       <ul
         data-ref="index-list"
         hidden
-        class="grid gap-1 overflow-x-auto px-2 font-mono text-caption tnum text-muted"
+        class="grid gap-0.5 overflow-x-auto font-mono text-caption tnum text-muted"
       >
       </ul>
     </div>
-
-    <fieldset class="grid gap-5">
-      <legend class={`${legendText} mb-2.5`}>Carga de trabajo</legend>
-      {
-        numericFields.map((field) => (
-          <div class="grid gap-2">
-            <div class="flex items-center gap-1.5 px-2">
-              <label for={`field-${field.name}`} class="text-body-sm font-medium text-secondary">
-                {field.label}
-              </label>
-              <Fragment set:html={tip(field.term)} />
-            </div>
-            <input
-              id={`field-${field.name}`}
-              name={field.name}
-              type="number"
-              inputmode="numeric"
-              value={field.value}
-              min={field.limits.min}
-              max={field.limits.max}
-              step="1"
-              aria-describedby={`hint-${field.name}`}
-              class={numberField}
-            />
-            <span id={`hint-${field.name}`} class="px-2 text-xs text-muted">
-              {field.hint}
-            </span>
-          </div>
-        ))
-      }
-    </fieldset>
 
    </div>
 
     <ul
       data-ref="errors"
       hidden
-      class="mt-10 grid gap-1 rounded-card bg-primary p-6 text-body-sm text-canvas"
+      class="mt-6 grid gap-1 rounded-card bg-primary p-4 text-body-sm text-canvas"
     >
     </ul>
 
   </form>
 
-  <div data-ref="step-analysis" hidden class="grid gap-10">
+  <div data-ref="step-analysis" hidden class="grid gap-8">
     <section class={panel} aria-labelledby="progress-heading">
       <div class="flex items-baseline justify-between gap-4">
         <h2 id="progress-heading" class={legendText}>Progreso de la ejecución</h2>
