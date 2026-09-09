@@ -379,6 +379,16 @@ const numericFields = [
       <div data-ref="chart" class="pt-6"></div>
     </section>
 
+    <section class={`${panel} px-0`} aria-labelledby="results-heading">
+      <h2 id="results-heading" class={`${legendText} flex items-center gap-2 px-6`}>
+        <Fragment set:html={icon('table-2', 'size-4')} />
+        Distribución de latencia
+      </h2>
+      <div data-ref="results" class="pt-4"></div>
+    </section>
+
+    {/* Last on purpose: the conditions are the footnote to the measurement, and
+        between the chart and the numbers they interrupted the reading. */}
     <section class={panel} aria-labelledby="context-heading">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <h2 id="context-heading" class={`${legendText} flex items-center gap-2`}>
@@ -391,14 +401,6 @@ const numericFields = [
       </div>
       {/* A number without its conditions is an anecdote, not a measurement. */}
       <div data-ref="context" class="pt-6"></div>
-    </section>
-
-    <section class={`${panel} px-0`} aria-labelledby="results-heading">
-      <h2 id="results-heading" class={`${legendText} flex items-center gap-2 px-10`}>
-        <Fragment set:html={icon('table-2', 'size-4')} />
-        Distribución de latencia
-      </h2>
-      <div data-ref="results" class="pt-4"></div>
     </section>
   </div>
 </benchmark-console>
